@@ -17,8 +17,8 @@ export default fp(async (fastify) => {
   fastify.decorate("io", io)
 })
 
-// declare module "fastify" {
-//   interface FastifyInstance {
-//     io: Server
-//   }
-// }
+declare module "fastify" {
+  interface FastifyInstance {
+    io: Server
+  }
+}
