@@ -18,11 +18,8 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset",
-
     "dev:clean": "npm run docker:clean && npm run db:reset",
-
     "dev:setup": "npm run docker:up && powershell -command \"Start-Sleep -Seconds 10\" && npm run db:generate && npm run db:push",
- 
     "dev:with-db": "npm run docker:up && powershell -command \"Start-Sleep -Seconds 10\" && npm run dev"
   },
   "keywords": [],
@@ -36,11 +33,13 @@
     "fastify": "^5.6.0",
     "fastify-plugin": "^5.0.1",
     "ioredis": "^5.7.0",
+    "nodemailer": "^7.0.6",
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
     "@swc/core": "^1.13.5",
     "@types/node": "^24.3.1",
+    "@types/nodemailer": "^7.0.1",
     "prisma": "^6.15.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.2"
