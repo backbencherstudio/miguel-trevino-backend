@@ -14,7 +14,7 @@ datasource db {
 }
 
 model User {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   firstName   String?
   lastName    String?
   fullName    String?
@@ -23,21 +23,29 @@ model User {
   avatar      String?
   chat_avatar String?
 
+  type userStatus @default(user)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("users")
 }
 
+enum userStatus {
+  user
+  admin
+}
+
 model Ucode {
-  id              Int    @id @default(autoincrement())
+  id              Int     @id @default(autoincrement())
   firstName       String?
   lastName        String?
-  email           String @unique
+  email           String  @unique
   password        String?
   conformPassword String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
   @@map("ucodes")
 }

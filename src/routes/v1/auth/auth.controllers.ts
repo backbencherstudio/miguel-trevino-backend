@@ -1,5 +1,8 @@
 import { FastifyRequest, FastifyReply } from "fastify";
+import bcrypt from "bcrypt";
 import { otpVerificationEmail } from "../../../utils/email.config";
+import jwt from "jsonwebtoken";
+import { generateJwtToken } from "../../../utils/jwt.utils";
 
 // Interfaces para las solicitudes
 interface LoginRequest {
@@ -13,7 +16,7 @@ interface RegisterRequest {
   password: string;
 }
 
-export const register = async (request, reply) => {
+export const registerSendOtp = async (request, reply) => {
   try {
     const { firstName, lastName, email, password, conformPassword } =
       request.body;
@@ -37,8 +40,19 @@ export const register = async (request, reply) => {
       return reply.status(400).send({ error: "Passwords do not match" });
     }
 
-    // const prisma = request.server.prisma;
+    const prisma = request.server.prisma;
     const redis = request.server.redis;
+
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
+      return reply.status(400).send({
+        success: false,
+        message: "User with this email already exists",
+      });
+    }
 
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
 
@@ -48,14 +62,16 @@ export const register = async (request, reply) => {
 
     await redis
       .multi()
-      .hset(`user:${email}`, {
-        name: `${firstName} ${lastName}`,
+      .hset(`register-verify-otp:${email}`, {
+        firstName,
+        lastName,
+        fullName: `${firstName} ${lastName}`,
         email,
         password,
         otp,
         expiration: otpExpiry.toString(),
       })
-      .expire(`user:${email}`, 5 * 60)
+      .expire(`register-verify-otp:${email}`, 5 * 60)
       .exec();
 
     return reply
@@ -69,62 +85,127 @@ export const register = async (request, reply) => {
   }
 };
 
-export const login = async (
-  request: FastifyRequest<{ Body: LoginRequest }>,
-  reply: FastifyReply
-) => {
+export const registerVerifyOtp = async (request, reply) => {
   try {
-    const { email, password } = request.body;
+    const { email, otp } = request.body;
 
-    return reply.code(200).send({
-      success: true,
-      message: "Login exitoso",
+    if (!email || !otp) {
+      return reply.status(400).send({
+        success: false,
+        message: "Email and OTP are required!",
+      });
+    }
+
+    const redis = request.server.redis;
+    const prisma = request.server.prisma;
+
+    const userData = await redis.hgetall(`register-verify-otp:${email}`);
+    console.log(userData);
+    if (!Object.keys(userData || {}).length) {
+      return reply.status(400).send({
+        success: false,
+        message: "not found! please register again",
+      });
+    }
+
+    if (userData.otp !== otp) {
+      return reply.status(400).send({
+        success: false,
+        message: "Invalid OTP!",
+      });
+    }
+
+    const now = Date.now();
+    if (now > parseInt(userData.expiration)) {
+      return reply.status(400).send({
+        success: false,
+        message: "OTP expired!",
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(userData.password, 10);
+
+    const fullName = `${userData.firstName} ${userData.lastName}`;
+
+    const newUser = await prisma.user.create({
       data: {
-        token: "jwt-token-simulado",
-        user: {
-          email,
-          name: "Usuario Simulado",
-        },
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        fullName: fullName,
+        email: userData.email,
+        password: hashedPassword,
       },
+    });
+
+    await redis.del(`register-verify-otp:${email}`);
+
+    const token = generateJwtToken({ id: newUser.id, email: newUser.email });
+
+    const { password, ...userdata } = newUser;
+
+    return reply.status(200).send({
+      success: true,
+      message: "user registered successfully!",
+      data: userdata,
+      token,
     });
   } catch (error) {
     request.log.error(error);
-    return reply.code(500).send({
+    return reply.status(500).send({
       success: false,
-      message: "Error en el servidor",
-      error: error instanceof Error ? error.message : "Error desconocido",
+      message: "Internal Server Error",
+      error: error.message,
     });
   }
 };
 
-// Controlador para el registro
-
-// Controlador para obtener el perfil del usuario
-export const getProfile = async (
-  request: FastifyRequest,
-  reply: FastifyReply
-) => {
+export const getRecentOtp = async (request, reply) => {
   try {
-    // Aquí iría la lógica para obtener el perfil del usuario autenticado
-    // Por ahora, solo devolvemos una respuesta simulada
+    const { email } = request.body;
 
-    return reply.code(200).send({
+    if (!email) {
+      return reply.status(400).send({
+        success: false,
+        message: "Email is required!",
+      });
+    }
+
+    const redis = request.server.redis;
+
+    const otpData = await redis.hgetall(`register-verify-otp:${email}`);
+
+    if (!Object.keys(otpData || {}).length) {
+      return reply.status(404).send({
+        success: false,
+        message: "not found! please register again",
+      });
+    }
+
+    const newOtp = Math.floor(1000 + Math.random() * 9000).toString();
+    const newExpiry = Date.now() + 5 * 60 * 1000;
+
+   await redis
+      .multi()
+      .hset(`register-verify-otp:${email}`, {
+        ...otpData,
+        otp: newOtp,
+        expiration: newExpiry.toString(),
+      })
+      .expire(`register-verify-otp:${email}`, 5 * 60)
+      .exec();
+
+    otpVerificationEmail(email, newOtp);
+
+    return reply.status(200).send({
       success: true,
-      message: "Perfil obtenido exitosamente",
-      data: {
-        user: {
-          id: 1,
-          name: "Usuario Simulado",
-          email: "usuario@ejemplo.com",
-        },
-      },
+      message: "OTP resent successfully",
     });
   } catch (error) {
     request.log.error(error);
-    return reply.code(500).send({
+    return reply.status(500).send({
       success: false,
-      message: "Error en el servidor",
-      error: error instanceof Error ? error.message : "Error desconocido",
+      message: "Internal Server Error",
+      error: error instanceof Error ? error.message : "Unknown error",
     });
   }
 };

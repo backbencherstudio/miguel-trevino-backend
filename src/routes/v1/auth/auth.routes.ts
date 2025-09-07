@@ -1,13 +1,15 @@
 import { FastifyInstance } from "fastify";
-import { login, register, getProfile } from "./auth.controllers";
+import {
+  getRecentOtp,
+  registerSendOtp,
+  registerVerifyOtp,
+} from "./auth.controllers";
 
 const authRoutes = (fastify: FastifyInstance) => {
+  fastify.post("/register/sendotp", registerSendOtp);
+  fastify.post("/register/verifyotp", registerVerifyOtp);
+   fastify.post("/register/recentotp", getRecentOtp); 
 
-
-  fastify.post("/register/sendotp", register);
-
-  fastify.post("/auth-login", login);
-  fastify.get("/auth-profile", getProfile);
 };
 
 export default authRoutes;
