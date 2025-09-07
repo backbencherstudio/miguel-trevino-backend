@@ -3,6 +3,9 @@ import bcrypt from "bcrypt";
 import { otpVerificationEmail } from "../../../utils/email.config";
 import jwt from "jsonwebtoken";
 import { generateJwtToken } from "../../../utils/jwt.utils";
+import path from "path";
+import fs from "fs";
+import { v4 as uuidv4 } from "uuid";
 
 // Interfaces para las solicitudes
 interface LoginRequest {
@@ -15,6 +18,30 @@ interface RegisterRequest {
   email: string;
   password: string;
 }
+
+const downloadAndSaveImage = async (imageUrl: string): Promise<string> => {
+  try {
+    const response = await fetch(imageUrl);
+    if (!response.ok) throw new Error("Failed to download image");
+
+    const buffer = await response.arrayBuffer();
+    const filename = `${uuidv4()}.jpg`;
+    const uploadDir = path.join(__dirname, "../../uploads");
+
+    // Ensure uploads directory exists
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    const filepath = path.join(uploadDir, filename);
+    fs.writeFileSync(filepath, Buffer.from(buffer));
+
+    return filename;
+  } catch (error) {
+    console.error("Error saving image:", error);
+    return imageUrl;
+  }
+};
 
 export const registerSendOtp = async (request, reply) => {
   try {
@@ -184,7 +211,7 @@ export const getRecentOtp = async (request, reply) => {
     const newOtp = Math.floor(1000 + Math.random() * 9000).toString();
     const newExpiry = Date.now() + 5 * 60 * 1000;
 
-   await redis
+    await redis
       .multi()
       .hset(`register-verify-otp:${email}`, {
         ...otpData,
@@ -208,4 +235,25 @@ export const getRecentOtp = async (request, reply) => {
       error: error instanceof Error ? error.message : "Unknown error",
     });
   }
+};
+
+export const googleAuth = async (request, reply) => {
+  try {
+    const { email, fullName, image } = request.body;
+
+    const missingField = [
+      "firstName",
+      "lastName",
+      "email",
+      "password",
+      "conformPassword",
+    ].find((field) => !request.body[field]);
+
+    if (missingField) {
+      return reply.status(400).send({
+        success: false,
+        message: `${missingField} is required!`,
+      });
+    }
+  } catch (error) {}
 };
