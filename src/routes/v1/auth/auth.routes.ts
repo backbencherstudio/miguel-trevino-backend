@@ -14,7 +14,7 @@ const authRoutes = (fastify: FastifyInstance) => {
   fastify.post("/register/recentotp", getRecentOtp); 
 
   //google auth
-  fastify.post("/google", googleAuth);
+  fastify.post("/register/google", googleAuth);
 
 };
 

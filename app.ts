@@ -3,6 +3,7 @@ import Fastify from "fastify";
 import AutoLoad from "@fastify/autoload";
 import cors from "@fastify/cors";
 import routesV1 from "./src/routes/v1";
+import fastifyStatic from "@fastify/static";  
 
 const app = Fastify({ logger: true });
 
@@ -15,7 +16,13 @@ app.register(cors, {
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 });
 
+
 app.register(routesV1, { prefix: "/api/v1" });
+
+app.register(fastifyStatic, {
+  root: path.join(__dirname, "uploads"),
+  prefix: "/uploads/",
+});
 
 app.setNotFoundHandler((request, reply) => {
   reply.status(400).send({

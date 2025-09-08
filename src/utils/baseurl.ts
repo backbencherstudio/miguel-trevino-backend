@@ -1,6 +1,6 @@
 export const getImageUrl = (imagePath: string) => {
-    return `${process.env.APP_URL}${imagePath}`;
+    return `${process.env.BASE_URL}${imagePath}`;
   };
   
-  export const baseUrl = process.env.APP_URL;
+  export const baseUrl = process.env.BASE_URL;
   

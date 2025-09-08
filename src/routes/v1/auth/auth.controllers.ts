@@ -3,11 +3,11 @@ import bcrypt from "bcrypt";
 import { otpVerificationEmail } from "../../../utils/email.config";
 import jwt from "jsonwebtoken";
 import { generateJwtToken } from "../../../utils/jwt.utils";
+import { getImageUrl } from "../../../utils/baseurl";
 import path from "path";
 import fs from "fs";
 import { v4 as uuidv4 } from "uuid";
 
-// Interfaces para las solicitudes
 interface LoginRequest {
   email: string;
   password: string;
@@ -26,9 +26,8 @@ const downloadAndSaveImage = async (imageUrl: string): Promise<string> => {
 
     const buffer = await response.arrayBuffer();
     const filename = `${uuidv4()}.jpg`;
-    const uploadDir = path.join(__dirname, "../../uploads");
+    const uploadDir = path.join(__dirname, "../../../../uploads");
 
-    // Ensure uploads directory exists
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
@@ -39,7 +38,7 @@ const downloadAndSaveImage = async (imageUrl: string): Promise<string> => {
     return filename;
   } catch (error) {
     console.error("Error saving image:", error);
-    return imageUrl;
+    throw new Error("Failed to download and save image");
   }
 };
 
@@ -238,22 +237,81 @@ export const getRecentOtp = async (request, reply) => {
 };
 
 export const googleAuth = async (request, reply) => {
+
+  const parseNameFromFullName = (fullName: string) => {
+    const nameParts = fullName.trim().split(/\s+/);
+    const firstName = nameParts[0] || "";
+    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+    return { firstName, lastName };
+  };
+
   try {
-    const { email, fullName, image } = request.body;
+    const { email, name, image } = request.body;
 
-    const missingField = [
-      "firstName",
-      "lastName",
-      "email",
-      "password",
-      "conformPassword",
-    ].find((field) => !request.body[field]);
-
-    if (missingField) {
+    if (!email || !name) {
       return reply.status(400).send({
         success: false,
-        message: `${missingField} is required!`,
+        message: "Email and fullName are required!",
       });
     }
-  } catch (error) {}
+
+    const prisma = request.server.prisma;
+
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+
+    if (existingUser) {
+      const token = generateJwtToken({
+        id: existingUser.id,
+        email: existingUser.email,
+      });
+
+      const userResponse = {
+        ...existingUser,
+        avatar: existingUser.avatar
+          ? getImageUrl(`/uploads/${existingUser.avatar}`)
+          : null,
+      };
+
+      return reply.status(200).send({
+        success: true,
+        message: "User found, login successful!",
+        data: userResponse,
+        token,
+      });
+    }
+
+    const processedAvatar = image ? await downloadAndSaveImage(image) : null;
+    const { firstName, lastName } = parseNameFromFullName(name);
+
+    const newUser = await prisma.user.create({
+      data: {
+        email,
+        firstName,
+        lastName,
+        fullName: name,
+        ...(processedAvatar && { avatar: processedAvatar }),
+      },
+    });
+
+    const token = generateJwtToken({ id: newUser.id, email: newUser.email });
+
+    const userResponse = {
+      ...newUser,
+      avatar: newUser.avatar ? getImageUrl(`/uploads/${newUser.avatar}`) : null,
+    };
+
+    return reply.status(201).send({
+      success: true,
+      message: "New user created successfully!",
+      data: userResponse,
+      token,
+    });
+  } catch (error) {
+    request.log.error(error);
+    return reply.status(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
 };
