@@ -1,7 +1,7 @@
 import nodemailer from "nodemailer";
 
 import dotenv from "dotenv";
-import { otpVerificationEmailTamplate } from "../emails/auth.email";
+import { forgotPasswordOtpTemplate, otpVerificationEmailTamplate } from "../emails/auth.email";
 
 dotenv.config();
 
@@ -32,7 +32,6 @@ export const sendEmail = async (
 
 
 
-
 //registaion user otp email
 export const otpVerificationEmail = async (
   email: string,
@@ -43,3 +42,11 @@ export const otpVerificationEmail = async (
   await sendEmail(email, "OTP Verification Email", htmlContent);
 };
 
+// Add this new email sending function
+export const forgotPasswordEmail = async (
+  email: string,
+  otp: string
+): Promise<void> => {
+  const htmlContent = forgotPasswordOtpTemplate(otp);
+  await sendEmail(email, "Password Reset Verification Code", htmlContent);
+};

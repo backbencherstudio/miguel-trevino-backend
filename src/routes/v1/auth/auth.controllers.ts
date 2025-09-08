@@ -1,23 +1,12 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import bcrypt from "bcrypt";
-import { otpVerificationEmail } from "../../../utils/email.config";
+import { forgotPasswordEmail, otpVerificationEmail } from "../../../utils/email.config";
 import jwt from "jsonwebtoken";
 import { generateJwtToken } from "../../../utils/jwt.utils";
 import { getImageUrl } from "../../../utils/baseurl";
 import path from "path";
 import fs from "fs";
 import { v4 as uuidv4 } from "uuid";
-
-interface LoginRequest {
-  email: string;
-  password: string;
-}
-
-interface RegisterRequest {
-  name: string;
-  email: string;
-  password: string;
-}
 
 const downloadAndSaveImage = async (imageUrl: string): Promise<string> => {
   try {
@@ -237,7 +226,6 @@ export const getRecentOtp = async (request, reply) => {
 };
 
 export const googleAuth = async (request, reply) => {
-
   const parseNameFromFullName = (fullName: string) => {
     const nameParts = fullName.trim().split(/\s+/);
     const firstName = nameParts[0] || "";
@@ -248,10 +236,16 @@ export const googleAuth = async (request, reply) => {
   try {
     const { email, name, image } = request.body;
 
-    if (!email || !name) {
+    const missingField = [
+      "email",
+      "name",
+      "image",
+    ].find((field) => !request.body[field]);
+
+    if (missingField) {
       return reply.status(400).send({
         success: false,
-        message: "Email and fullName are required!",
+        message: `${missingField} is required!`,
       });
     }
 
@@ -306,6 +300,206 @@ export const googleAuth = async (request, reply) => {
       data: userResponse,
       token,
     });
+  } catch (error) {
+    request.log.error(error);
+    return reply.status(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+export const forgotPasswordSendOtp = async (request, reply) => {
+  try {
+    const { email } = request.body;
+
+    if (!email) {
+      return reply.status(400).send({
+        success: false,
+        message: "Email is required!",
+      });
+    }
+
+    const prisma = request.server.prisma;
+    const redis = request.server.redis;
+
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!existingUser) {
+      return reply.status(404).send({
+        success: false,
+        message: "User with this email does not exist",
+      });
+    }
+
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    const otpExpiry = Date.now() + 5 * 60 * 1000;
+
+    forgotPasswordEmail(email, otp);
+
+    await redis
+      .multi()
+      .hset(`forgot-password-otp:${email}`, {
+        email,
+        otp,
+        expiration: otpExpiry.toString(),
+        userId: existingUser.id.toString(),
+        permission_to_update_password: "true"
+      })
+      .expire(`forgot-password-otp:${email}`, 5 * 60)
+      .exec();
+
+    return reply.status(200).send({
+      success: true,
+      message: "OTP sent to your email for password reset",
+    });
+  } catch (error) {
+    request.log.error(error);
+    return reply.status(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+
+export const forgotPasswordVerifyOtp = async (request, reply) => {
+  try {
+    const { email, otp } = request.body;
+
+    if (!email || !otp) {
+      return reply.status(400).send({
+        success: false,
+        message: "Email and OTP are required!",
+      });
+    }
+
+    const redis = request.server.redis;
+    const prisma = request.server.prisma;
+
+    const otpData = await redis.hgetall(`forgot-password-otp:${email}`);
+    
+    if (!Object.keys(otpData || {}).length) {
+      return reply.status(400).send({
+        success: false,
+        message: "OTP not found or expired!",
+      });
+    }
+
+    if (otpData.otp !== otp) {
+      return reply.status(400).send({
+        success: false,
+        message: "Invalid OTP!",
+      });
+    }
+
+    const now = Date.now();
+    if (now > parseInt(otpData.expiration)) {
+      return reply.status(400).send({
+        success: false,
+        message: "OTP expired!",
+      });
+    }
+
+    if (otpData.permission_to_update_password !== "true") {
+      return reply.status(400).send({
+        success: false,
+        message: "Permission to update password not granted!",
+      });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      return reply.status(404).send({
+        success: false,
+        message: "User not found!",
+      });
+    }
+
+    await redis.expire(`forgot-password-otp:${email}`, 10 * 60);
+
+    return reply.status(200).send({
+      success: true,
+      message: "OTP verified successfully! You can now reset your password.",
+    });
+
+  } catch (error) {
+    request.log.error(error);
+    return reply.status(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+
+export const forgotPasswordReset = async (request, reply) => {
+  try {
+    const { email, password } = request.body;
+
+    if (!email || !password) {
+      return reply.status(400).send({
+        success: false,
+        message: "Email and password are required!",
+      });
+    }
+
+    const redis = request.server.redis;
+    const prisma = request.server.prisma;
+
+    const otpData = await redis.hgetall(`forgot-password-otp:${email}`);
+    console.log(otpData)
+    
+    if (!Object.keys(otpData || {}).length) {
+      return reply.status(400).send({
+        success: false,
+        message: "Password reset session expired!",
+      });
+    }
+
+    if (otpData.permission_to_update_password !== "true") {
+      return reply.status(400).send({
+        success: false,
+        message: "Permission to update password not granted!",
+      });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      return reply.status(404).send({
+        success: false,
+        message: "User not found!",
+      });
+    }
+
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+
+    await prisma.user.update({
+      where: { email },
+      data: { password: hashedPassword },
+    });
+
+
+    await redis.del(`forgot-password-otp:${email}`);
+
+    return reply.status(200).send({
+      success: true,
+      message: "Password reset successfully!",
+    });
+
   } catch (error) {
     request.log.error(error);
     return reply.status(500).send({
