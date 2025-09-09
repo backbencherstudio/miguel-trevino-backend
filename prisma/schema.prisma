@@ -14,13 +14,24 @@ datasource db {
 }
 
 model User {
-  id          String  @id @default(cuid())
-  firstName   String?
-  lastName    String?
-  fullName    String?
-  email       String  @unique
-  password    String?
-  avatar      String?
+  id        String  @id @default(cuid())
+  firstName String?
+  lastName  String?
+  fullName  String?
+  email     String  @unique
+  password  String?
+  avatar    String?
+
+  //profile
+  phone      String?
+  timezone   String?
+  dateFormat String?
+
+  //sequrity
+  sessionTimeout            Int?
+  passwordExpiry            Int?
+  two_factor_authentication Int     @default(0)
+  secret                    String?
 
   type userStatus @default(user)
 

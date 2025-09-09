@@ -1,10 +1,14 @@
 import nodemailer from "nodemailer";
 
 import dotenv from "dotenv";
-import { forgotPasswordOtpTemplate, otpVerificationEmailTamplate } from "../emails/auth.email";
+import {
+  forgotPasswordOtpTemplate,
+  forgotPasswordResetOtpTemplate,
+  otpVerificationEmailTamplate,
+  twoFactorOtpTemplate,
+} from "../emails/auth.email";
 
 dotenv.config();
-
 
 export const sendEmail = async (
   to: string,
@@ -30,14 +34,11 @@ export const sendEmail = async (
   await mailTransporter.sendMail(mailOptions);
 };
 
-
-
 //registaion user otp email
 export const otpVerificationEmail = async (
   email: string,
   otp: string
 ): Promise<void> => {
-
   const htmlContent = otpVerificationEmailTamplate(otp);
   await sendEmail(email, "OTP Verification Email", htmlContent);
 };
@@ -49,4 +50,15 @@ export const forgotPasswordEmail = async (
 ): Promise<void> => {
   const htmlContent = forgotPasswordOtpTemplate(otp);
   await sendEmail(email, "Password Reset Verification Code", htmlContent);
+};
+
+export const sendForgotPasswordOTP = async (email: string, otp: string) => {
+  const htmlContent = forgotPasswordResetOtpTemplate(otp);
+  await sendEmail(email, "Password Reset Verification Code", htmlContent);
+};
+
+//Two Factor Otp Template
+export const sendTwoFactorOtp = async (email: string, otp: string) => {
+  const htmlContent = twoFactorOtpTemplate(otp);
+  await sendEmail(email, "Two-Factor Authentication Code", htmlContent);
 };

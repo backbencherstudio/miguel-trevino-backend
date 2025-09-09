@@ -6,7 +6,9 @@ import {
   googleAuth,
   forgotPasswordSendOtp,
   forgotPasswordVerifyOtp,
-  forgotPasswordReset
+  forgotPasswordReset,
+  forgotPasswordRecentOtp,
+  email2FASendOtp
 } from "./auth.controllers";
 
 const authRoutes = (fastify: FastifyInstance) => {
@@ -20,12 +22,16 @@ const authRoutes = (fastify: FastifyInstance) => {
   fastify.post("/register/google", googleAuth);
 
   //forgot passwors
-  // 1. get email and send otp
-  // 2. verify otp
-  // 3. reset password
   fastify.post("/forgotpassword/sendotp", forgotPasswordSendOtp);
   fastify.post("/forgotpassword/verifyotp", forgotPasswordVerifyOtp);
   fastify.post("/forgotpassword/reset", forgotPasswordReset);
+  fastify.post("/forgotpassword/recentotp", forgotPasswordRecentOtp); 
+  
+  //TwoFactor authentication (2FA)
+  fastify.post("/2fa/email/sendotp", email2FASendOtp);
+
+  
+
 };
 
 export default authRoutes;

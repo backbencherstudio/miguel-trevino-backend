@@ -1,6 +1,11 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import bcrypt from "bcrypt";
-import { forgotPasswordEmail, otpVerificationEmail } from "../../../utils/email.config";
+import {
+  forgotPasswordEmail,
+  otpVerificationEmail,
+  sendForgotPasswordOTP,
+  sendTwoFactorOtp,
+} from "../../../utils/email.config";
 import jwt from "jsonwebtoken";
 import { generateJwtToken } from "../../../utils/jwt.utils";
 import { getImageUrl } from "../../../utils/baseurl";
@@ -236,11 +241,9 @@ export const googleAuth = async (request, reply) => {
   try {
     const { email, name, image } = request.body;
 
-    const missingField = [
-      "email",
-      "name",
-      "image",
-    ].find((field) => !request.body[field]);
+    const missingField = ["email", "name", "image"].find(
+      (field) => !request.body[field]
+    );
 
     if (missingField) {
       return reply.status(400).send({
@@ -347,7 +350,7 @@ export const forgotPasswordSendOtp = async (request, reply) => {
         otp,
         expiration: otpExpiry.toString(),
         userId: existingUser.id.toString(),
-        permission_to_update_password: "true"
+        permission_to_update_password: "true",
       })
       .expire(`forgot-password-otp:${email}`, 5 * 60)
       .exec();
@@ -366,7 +369,6 @@ export const forgotPasswordSendOtp = async (request, reply) => {
   }
 };
 
-
 export const forgotPasswordVerifyOtp = async (request, reply) => {
   try {
     const { email, otp } = request.body;
@@ -382,7 +384,7 @@ export const forgotPasswordVerifyOtp = async (request, reply) => {
     const prisma = request.server.prisma;
 
     const otpData = await redis.hgetall(`forgot-password-otp:${email}`);
-    
+
     if (!Object.keys(otpData || {}).length) {
       return reply.status(400).send({
         success: false,
@@ -429,7 +431,6 @@ export const forgotPasswordVerifyOtp = async (request, reply) => {
       success: true,
       message: "OTP verified successfully! You can now reset your password.",
     });
-
   } catch (error) {
     request.log.error(error);
     return reply.status(500).send({
@@ -439,7 +440,6 @@ export const forgotPasswordVerifyOtp = async (request, reply) => {
     });
   }
 };
-
 
 export const forgotPasswordReset = async (request, reply) => {
   try {
@@ -456,8 +456,8 @@ export const forgotPasswordReset = async (request, reply) => {
     const prisma = request.server.prisma;
 
     const otpData = await redis.hgetall(`forgot-password-otp:${email}`);
-    console.log(otpData)
-    
+    console.log(otpData);
+
     if (!Object.keys(otpData || {}).length) {
       return reply.status(400).send({
         success: false,
@@ -483,15 +483,12 @@ export const forgotPasswordReset = async (request, reply) => {
       });
     }
 
-
     const hashedPassword = await bcrypt.hash(password, 10);
-
 
     await prisma.user.update({
       where: { email },
       data: { password: hashedPassword },
     });
-
 
     await redis.del(`forgot-password-otp:${email}`);
 
@@ -499,7 +496,123 @@ export const forgotPasswordReset = async (request, reply) => {
       success: true,
       message: "Password reset successfully!",
     });
+  } catch (error) {
+    request.log.error(error);
+    return reply.status(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
 
+export const forgotPasswordRecentOtp = async (request, reply) => {
+  try {
+    const { email } = request.body;
+
+    if (!email) {
+      return reply.status(400).send({
+        success: false,
+        message: "Email is required!",
+      });
+    }
+
+    const redis = request.server.redis;
+    const prisma = request.server.prisma;
+
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!existingUser) {
+      return reply.status(404).send({
+        success: false,
+        message: "User with this email does not exist",
+      });
+    }
+
+    const otpData = await redis.hgetall(`forgot-password-otp:${email}`);
+
+    if (!Object.keys(otpData || {}).length) {
+      return reply.status(404).send({
+        success: false,
+        message: "No active OTP session found. Please request a new OTP.",
+      });
+    }
+
+    const newOtp = Math.floor(1000 + Math.random() * 9000).toString();
+    const newExpiry = Date.now() + 5 * 60 * 1000;
+
+    await redis
+      .multi()
+      .hset(`forgot-password-otp:${email}`, {
+        ...otpData,
+        otp: newOtp,
+        expiration: newExpiry.toString(),
+      })
+      .expire(`forgot-password-otp:${email}`, 5 * 60)
+      .exec();
+
+    sendForgotPasswordOTP(email, newOtp);
+
+    return reply.status(200).send({
+      success: true,
+      message: "New OTP sent successfully",
+    });
+  } catch (error) {
+    request.log.error(error);
+    return reply.status(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+export const email2FASendOtp = async (request, reply) => {
+  try {
+    const { email } = request.body;
+
+    if (!email) {
+      return reply.status(400).send({
+        success: false,
+        message: "Email is required!",
+      });
+    }
+
+    const prisma = request.server.prisma;
+    const redis = request.server.redis;
+
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      return reply.status(404).send({
+        success: false,
+        message: "User does not exist",
+      });
+    }
+
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    const otpExpiry = Date.now() + 5 * 60 * 1000;
+
+    await redis
+      .multi()
+      .hset(`2fa-otp:${email}`, {
+        otp,
+        expiration: otpExpiry.toString(),
+        userId: user.id.toString(),
+      })
+      .expire(`2fa-otp:${email}`, 5 * 60)
+      .exec();
+
+    sendTwoFactorOtp(email, otp);
+
+    return reply.status(200).send({
+      success: true,
+      message: "2FA OTP sent to your email",
+    });
   } catch (error) {
     request.log.error(error);
     return reply.status(500).send({
