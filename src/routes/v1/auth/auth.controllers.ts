@@ -12,6 +12,7 @@ import { getImageUrl } from "../../../utils/baseurl";
 import path from "path";
 import fs from "fs";
 import { v4 as uuidv4 } from "uuid";
+import { authenticator } from "otplib";
 
 const downloadAndSaveImage = async (imageUrl: string): Promise<string> => {
   try {
@@ -612,6 +613,144 @@ export const email2FASendOtp = async (request, reply) => {
     return reply.status(200).send({
       success: true,
       message: "2FA OTP sent to your email",
+    });
+  } catch (error) {
+    request.log.error(error);
+    return reply.status(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+export const email2FAVerifyOtp = async (request, reply) => {
+  try {
+    const { email, otp } = request.body;
+
+    if (!email || !otp) {
+      return reply.status(400).send({
+        success: false,
+        message: "Email and OTP are required!",
+      });
+    }
+
+    const prisma = request.server.prisma;
+    const redis = request.server.redis;
+
+    const otpData = await redis.hgetall(`2fa-otp:${email}`);
+
+    if (!Object.keys(otpData || {}).length) {
+      return reply.status(400).send({
+        success: false,
+        message: "OTP not found or expired!",
+      });
+    }
+
+    if (otpData.otp !== otp) {
+      return reply.status(400).send({
+        success: false,
+        message: "Invalid OTP!",
+      });
+    }
+
+    const now = Date.now();
+    if (now > parseInt(otpData.expiration)) {
+      return reply.status(400).send({
+        success: false,
+        message: "OTP expired!",
+      });
+    }
+
+    const secret = authenticator.generateSecret();
+
+    const user = await prisma.user.update({
+      where: { email },
+      data: {
+        two_factor_authentication: 1,
+        secret: secret,
+      },
+    });
+
+    await redis.del(`2fa-otp:${email}`);
+
+    return reply.status(200).send({
+      success: true,
+      message: "Two-factor authentication enabled successfully!",
+      data: {
+        id: user.id,
+        email: user.email,
+        two_factor_authentication: user.two_factor_authentication,
+        secret: user.secret,
+      },
+    });
+  } catch (error) {
+    request.log.error(error);
+    return reply.status(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+
+export const email2FARecentOtp = async (request, reply) => {
+  try {
+    const { email } = request.body;
+
+    if (!email) {
+      return reply.status(400).send({
+        success: false,
+        message: "Email is required!",
+      });
+    }
+
+    const prisma = request.server.prisma;
+    const redis = request.server.redis;
+
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      return reply.status(404).send({
+        success: false,
+        message: "User does not exist",
+      });
+    }
+
+    // Fetch existing 2FA OTP data
+    const otpData = await redis.hgetall(`2fa-otp:${email}`);
+
+    if (!Object.keys(otpData || {}).length) {
+      return reply.status(404).send({
+        success: false,
+        message: "No active 2FA OTP session found. Please request a new OTP.",
+      });
+    }
+
+    // Generate new OTP
+    const newOtp = Math.floor(1000 + Math.random() * 9000).toString();
+    const newExpiry = Date.now() + 5 * 60 * 1000;
+
+    // Update Redis
+    await redis
+      .multi()
+      .hset(`2fa-otp:${email}`, {
+        ...otpData,
+        otp: newOtp,
+        expiration: newExpiry.toString(),
+      })
+      .expire(`2fa-otp:${email}`, 5 * 60)
+      .exec();
+
+    // Send email
+    sendTwoFactorOtp(email, newOtp);
+
+    return reply.status(200).send({
+      success: true,
+      message: "New 2FA OTP sent successfully",
     });
   } catch (error) {
     request.log.error(error);
