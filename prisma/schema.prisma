@@ -22,6 +22,10 @@ model User {
   password  String?
   avatar    String?
 
+  //only for ueser
+  companyName String?
+  jobTitle    String?
+
   //profile
   phone      String?
   timezone   String?
@@ -33,7 +37,15 @@ model User {
   two_factor_authentication Int     @default(0)
   secret                    String?
 
+  //parmitions
+  emailAccess Boolean @default(true)
+  phoneAccess Boolean @default(false)
+  pushAccess  Boolean @default(false)
+
   type userStatus @default(user)
+
+  //relations
+  nominations nomination[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -46,16 +58,63 @@ enum userStatus {
   admin
 }
 
-model Ucode {
-  id              Int     @id @default(autoincrement())
-  firstName       String?
-  lastName        String?
-  email           String  @unique
-  password        String?
-  conformPassword String?
+model nomination {
+  id String @id @default(cuid())
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  commodityType CommodityTypes
+  Origin        String
+  volume        Volumes
+  destination   String
+  unit          Units
+  transportMode TransportModes
 
-  @@map("ucodes")
+  // Scheduling & Additional Information
+  BeginningDate DateTime
+  EndDate       DateTime
+  Notes         String?
+
+  //relations
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  //status
+  status NominationStatus @default(Submitted)
+
+  requestedDate DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("nominations")
+}
+
+enum CommodityTypes {
+  NGLs
+  Refined_Products
+  Natural_Gas
+  Petrochemicals
+  Crude_Oil
+}
+
+enum Volumes {
+  low
+  medium
+  high
+}
+
+enum Units {
+  bbls
+  gallons
+  MCF
+  tons
+}
+
+enum TransportModes {
+  Pipeline
+  Trucking
+  Railcar
+  Marine
+}
+
+enum NominationStatus {
+  Submitted
+  Confirmed
 }

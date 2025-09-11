@@ -11,7 +11,11 @@ import {
   email2FASendOtp,
   email2FAVerifyOtp,
   email2FARecentOtp,
+  parmitions,
+  updateUser,
 } from "./auth.controllers";
+import { upload } from "../../../config/storage.config";
+import { verifyUser } from "../../../middleware/auth.middleware";
 
 const authRoutes = (fastify: FastifyInstance) => {
   // User Registration and OTP Verification
@@ -33,6 +37,20 @@ const authRoutes = (fastify: FastifyInstance) => {
   fastify.post("/2fa/email/verifyotp", email2FAVerifyOtp);
   fastify.post("/2fa/email/recentotp", email2FARecentOtp);
 
+  //controll parmitions
+  fastify.patch(
+    "/parmitions",
+    { preHandler: verifyUser("user", "admin") },
+    parmitions
+  );
+
+  fastify.patch(
+    "/update",
+    {
+      preHandler: [verifyUser("user", "admin"), upload.single("avatar")],
+    },
+    updateUser
+  );
 };
 
 export default authRoutes;

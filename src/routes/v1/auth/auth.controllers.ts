@@ -13,6 +13,7 @@ import path from "path";
 import fs from "fs";
 import { v4 as uuidv4 } from "uuid";
 import { authenticator } from "otplib";
+import { uploadsDir } from "../../../config/storage.config";
 
 const downloadAndSaveImage = async (imageUrl: string): Promise<string> => {
   try {
@@ -160,7 +161,11 @@ export const registerVerifyOtp = async (request, reply) => {
 
     await redis.del(`register-verify-otp:${email}`);
 
-    const token = generateJwtToken({ id: newUser.id, email: newUser.email });
+    const token = generateJwtToken({
+      id: newUser.id,
+      email: newUser.email,
+      type: newUser.type,
+    });
 
     const { password, ...userdata } = newUser;
 
@@ -261,6 +266,7 @@ export const googleAuth = async (request, reply) => {
       const token = generateJwtToken({
         id: existingUser.id,
         email: existingUser.email,
+        type: existingUser.type,
       });
 
       const userResponse = {
@@ -291,7 +297,11 @@ export const googleAuth = async (request, reply) => {
       },
     });
 
-    const token = generateJwtToken({ id: newUser.id, email: newUser.email });
+    const token = generateJwtToken({
+      id: newUser.id,
+      email: newUser.email,
+      type: newUser.type,
+    });
 
     const userResponse = {
       ...newUser,
@@ -694,7 +704,6 @@ export const email2FAVerifyOtp = async (request, reply) => {
   }
 };
 
-
 export const email2FARecentOtp = async (request, reply) => {
   try {
     const { email } = request.body;
@@ -720,7 +729,6 @@ export const email2FARecentOtp = async (request, reply) => {
       });
     }
 
-    // Fetch existing 2FA OTP data
     const otpData = await redis.hgetall(`2fa-otp:${email}`);
 
     if (!Object.keys(otpData || {}).length) {
@@ -730,11 +738,9 @@ export const email2FARecentOtp = async (request, reply) => {
       });
     }
 
-    // Generate new OTP
     const newOtp = Math.floor(1000 + Math.random() * 9000).toString();
     const newExpiry = Date.now() + 5 * 60 * 1000;
 
-    // Update Redis
     await redis
       .multi()
       .hset(`2fa-otp:${email}`, {
@@ -745,7 +751,6 @@ export const email2FARecentOtp = async (request, reply) => {
       .expire(`2fa-otp:${email}`, 5 * 60)
       .exec();
 
-    // Send email
     sendTwoFactorOtp(email, newOtp);
 
     return reply.status(200).send({
@@ -755,6 +760,176 @@ export const email2FARecentOtp = async (request, reply) => {
   } catch (error) {
     request.log.error(error);
     return reply.status(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+export const parmitions = async (request, reply) => {
+  try {
+    const prisma = request.server.prisma;
+    const userId = request.user?.id;
+    const { emailAccess, phoneAccess, pushAccess } = request.body;
+
+    if (
+      emailAccess === undefined &&
+      phoneAccess === undefined &&
+      pushAccess === undefined
+    ) {
+      return reply.status(400).send({
+        success: false,
+        message: "At least one permission field",
+      });
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(emailAccess !== undefined && { emailAccess }),
+        ...(phoneAccess !== undefined && { phoneAccess }),
+        ...(pushAccess !== undefined && { pushAccess }),
+      },
+      select: {
+        id: true,
+        email: true,
+        emailAccess: true,
+        phoneAccess: true,
+        pushAccess: true,
+      },
+    });
+
+    return reply.status(200).send({
+      success: true,
+      message: "Permissions updated successfully.",
+      data: updatedUser,
+    });
+  } catch (error) {
+    request.log.error(error);
+    return reply.status(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+export const updateUser = async (request, reply) => {
+  const toInt = (val: any) => {
+    const parsed = parseInt(val, 10);
+    return isNaN(parsed) ? undefined : parsed;
+  };
+
+  const removeFile = (filePath: string) => {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  };
+
+  try {
+    const prisma = request.server.prisma;
+    const userId = request.user?.id;
+    const allowedFields = [
+      "firstName",
+      "lastName",
+      "companyName",
+      "jobTitle",
+      "phone",
+      "timezone",
+      "dateFormat",
+      "sessionTimeout",
+      "passwordExpiry",
+    ];
+
+    const updateData: Record<string, any> = {};
+    for (const field of allowedFields) {
+      const value = request.body[field];
+      if (value !== undefined && value !== null && value !== "") {
+        if (field === "passwordExpiry" || field === "sessionTimeout") {
+          const parsed = parseInt(value, 10);
+          if (!isNaN(parsed)) {
+            updateData[field] = parsed;
+          }
+        } else {
+          updateData[field] = value;
+        }
+      }
+    }
+
+    if (request.file) {
+      const currentUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { avatar: true },
+      });
+
+      if (currentUser?.avatar) {
+        removeFile(path.join(uploadsDir, currentUser.avatar));
+      }
+
+      updateData.avatar = request.file.filename;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return reply.code(400).send({
+        success: false,
+        message: "At least one field must be provided for update",
+      });
+    }
+
+    if (updateData.firstName || updateData.lastName) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { firstName: true, lastName: true },
+      });
+
+      updateData.fullName = `${
+        (updateData.firstName ?? user?.firstName) || ""
+      } ${(updateData.lastName ?? user?.lastName) || ""}`.trim();
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        fullName: true,
+        companyName: true,
+        jobTitle: true,
+        phone: true,
+        timezone: true,
+        dateFormat: true,
+        sessionTimeout: true,
+        passwordExpiry: true,
+        avatar: true,
+        two_factor_authentication: true,
+        type: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    return reply.code(200).send({
+      success: true,
+      message: "User profile updated successfully",
+      data: {
+        ...updatedUser,
+        avatar: updatedUser.avatar
+          ? getImageUrl(`/uploads/${updatedUser.avatar}`)
+          : null,
+      },
+    });
+  } catch (error) {
+    request.log.error(error);
+
+    if (request.file?.path) {
+      removeFile(request.file.path);
+    }
+
+    return reply.code(500).send({
       success: false,
       message: "Internal Server Error",
       error: error instanceof Error ? error.message : "Unknown error",
