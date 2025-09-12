@@ -5,7 +5,15 @@ import { verifyUser } from "../../../middleware/auth.middleware";
 import { createNomination } from "./nomination.controllers";
 
 const authRoutes = (fastify: FastifyInstance) => {
-  fastify.post("/create", createNomination);
+  fastify.post(
+    "/create",
+    {
+      preHandler: verifyUser("user", "admin"),
+    },
+    createNomination
+  );
+
+  
 };
 
 export default authRoutes;
