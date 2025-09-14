@@ -14,7 +14,7 @@ datasource db {
 }
 
 model User {
-  id        String  @id @default(cuid())
+  id String @id @default(cuid())
   firstName String?
   lastName  String?
   fullName  String?
@@ -59,8 +59,8 @@ enum userStatus {
 }
 
 model nomination {
-  id String @id @default(cuid())
-
+  id            String         @id @default(cuid())
+  nominationId  String         @unique
   commodityType CommodityTypes
   Origin        String
   volume        Volumes

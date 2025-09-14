@@ -46,10 +46,12 @@ export const createNomination = async (request, reply) => {
         message: "user entity require",
       });
     }
-
+    const randomNum = Math.floor(100000 + Math.random() * 900000);
+    
     const nomination = await prisma.nomination.create({
       data: {
         commodityType,
+        nominationId:`#${randomNum}`,
         Origin,
         volume,
         destination,
@@ -82,7 +84,7 @@ export const createNomination = async (request, reply) => {
 export const uploadSchedule = async (request, reply) => {
   try {
     const { nominationId } = request.params;
-    console.log(nominationId)
+    console.log(nominationId);
 
     if (!nominationId) {
       return reply.status(400).send({
@@ -123,13 +125,6 @@ export const uploadSchedule = async (request, reply) => {
     const updatedNomination = await prisma.nomination.update({
       where: { id: nominationId },
       data: { scheduleFile: request.file.filename },
-      select: {
-        id: true,
-        commodityType: true,
-        destination: true,
-        scheduleFile: true,
-        requestedDate: true,
-      },
     });
 
     return reply.status(200).send({
@@ -150,6 +145,89 @@ export const uploadSchedule = async (request, reply) => {
       fs.unlinkSync(request.file.path);
     }
 
+    return reply.code(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+export const getMyNominations = async (request, reply) => {
+  try {
+    const prisma = request.server.prisma;
+    const { id } = request.user;
+
+    const page = parseInt(request.query.page) || 1;
+    const limit = parseInt(request.query.limit) || 10;
+    const startDate = request.query.startDate
+      ? new Date(request.query.startDate)
+      : null;
+    const endDate = request.query.endDate
+      ? new Date(request.query.endDate)
+      : null;
+
+    const skip = (page - 1) * limit;
+
+    const whereClause: any = {
+      userId: id,
+    };
+
+    if (startDate && endDate) {
+      whereClause.requestedDate = {
+        gte: startDate,
+        lte: endDate,
+      };
+    } else if (startDate) {
+      whereClause.requestedDate = {
+        gte: startDate,
+      };
+    } else if (endDate) {
+      whereClause.requestedDate = {
+        lte: endDate,
+      };
+    }
+
+    const totalItems = await prisma.nomination.count({
+      where: whereClause,
+    });
+
+    const nominations = await prisma.nomination.findMany({
+      where: whereClause,
+      skip,
+      take: limit,
+      orderBy: {
+        id: "desc",
+      },
+    });
+
+    const formattedNominations = nominations.map((nomination) => ({
+      ...nomination,
+      scheduleFile: nomination.scheduleFile
+        ? getImageUrl(`/uploads/${nomination.scheduleFile}`)
+        : null,
+    }));
+
+    const totalPages = Math.ceil(totalItems / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
+    return reply.status(200).send({
+      success: true,
+      message: "Nominations retrieved successfully",
+      data: formattedNominations,
+      pagination: {
+        totalItems,
+        totalPages,
+        currentPage: page,
+        itemsPerPage: limit,
+        hasNextPage,
+        hasPrevPage,
+      },
+      count: formattedNominations.length,
+    });
+  } catch (error) {
+    request.log.error(error);
     return reply.code(500).send({
       success: false,
       message: "Internal Server Error",
