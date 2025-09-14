@@ -80,6 +80,9 @@ model nomination {
   //status
   status NominationStatus @default(Submitted)
 
+  //after apprived
+  scheduleFile String?
+
   requestedDate DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

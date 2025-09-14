@@ -1,4 +1,7 @@
-
+import fs from "fs";
+import path from "path";
+import { getImageUrl } from "../../../utils/baseurl";
+import { uploadsDir } from "../../../config/storage.config";
 
 export const createNomination = async (request, reply) => {
   try {
@@ -12,6 +15,7 @@ export const createNomination = async (request, reply) => {
       BeginningDate,
       EndDate,
       Notes,
+      userId,
     } = request.body;
 
     const missingField = [
@@ -33,9 +37,15 @@ export const createNomination = async (request, reply) => {
     }
 
     const prisma = request.server.prisma;
-    const userId = request.user?.id;
     const admin = request.user?.type;
+    const userIde = admin === "admin" ? userId : request.user?.id;
 
+    if (admin === "admin" && !userId) {
+      return reply.status(400).send({
+        success: false,
+        message: "user entity require",
+      });
+    }
 
     const nomination = await prisma.nomination.create({
       data: {
@@ -48,8 +58,8 @@ export const createNomination = async (request, reply) => {
         BeginningDate,
         EndDate,
         Notes,
-        userId,
-        status: admin === "admin" ?  "Confirmed" : "Submitted"
+        userId: userIde,
+        status: admin === "admin" ? "Confirmed" : "Submitted",
       },
     });
 
@@ -69,3 +79,81 @@ export const createNomination = async (request, reply) => {
   }
 };
 
+export const uploadSchedule = async (request, reply) => {
+  try {
+    const { nominationId } = request.params;
+    console.log(nominationId)
+
+    if (!nominationId) {
+      return reply.status(400).send({
+        success: false,
+        message: "nominationId is required!",
+      });
+    }
+
+    if (!request.file) {
+      return reply.status(400).send({
+        success: false,
+        message: "scheduleFile is required!",
+      });
+    }
+
+    const prisma = request.server.prisma;
+
+    // Find nomination
+    const nomination = await prisma.nomination.findUnique({
+      where: { id: nominationId },
+      select: { scheduleFile: true },
+    });
+
+    if (!nomination) {
+      return reply.status(404).send({
+        success: false,
+        message: "Nomination not found!",
+      });
+    }
+
+    if (nomination.scheduleFile) {
+      const oldFilePath = path.join(uploadsDir, nomination.scheduleFile);
+      if (fs.existsSync(oldFilePath)) {
+        fs.unlinkSync(oldFilePath);
+      }
+    }
+
+    const updatedNomination = await prisma.nomination.update({
+      where: { id: nominationId },
+      data: { scheduleFile: request.file.filename },
+      select: {
+        id: true,
+        commodityType: true,
+        destination: true,
+        scheduleFile: true,
+        requestedDate: true,
+      },
+    });
+
+    return reply.status(200).send({
+      success: true,
+      message: "Schedule file uploaded successfully",
+      data: {
+        ...updatedNomination,
+        scheduleFile: updatedNomination.scheduleFile
+          ? getImageUrl(`/uploads/${updatedNomination.scheduleFile}`)
+          : null,
+      },
+    });
+  } catch (error) {
+    request.log.error(error);
+
+    // Clean up the newly uploaded file if error occurs
+    if (request.file?.path && fs.existsSync(request.file.path)) {
+      fs.unlinkSync(request.file.path);
+    }
+
+    return reply.code(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};

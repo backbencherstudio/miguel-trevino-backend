@@ -2,7 +2,7 @@ import { FastifyInstance } from "fastify";
 
 import { upload } from "../../../config/storage.config";
 import { verifyUser } from "../../../middleware/auth.middleware";
-import { createNomination } from "./nomination.controllers";
+import { createNomination, uploadSchedule } from "./nomination.controllers";
 
 const authRoutes = (fastify: FastifyInstance) => {
   fastify.post(
@@ -13,7 +13,13 @@ const authRoutes = (fastify: FastifyInstance) => {
     createNomination
   );
 
-  
+  fastify.post(
+    "/uploads-schedule/:nominationId",
+    {
+      preHandler: [verifyUser("admin"), upload.single("scheduleFile")],
+    },
+    uploadSchedule
+  );
 };
 
 export default authRoutes;
