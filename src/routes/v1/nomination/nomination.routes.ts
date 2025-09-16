@@ -2,7 +2,12 @@ import { FastifyInstance } from "fastify";
 
 import { upload } from "../../../config/storage.config";
 import { verifyUser } from "../../../middleware/auth.middleware";
-import { createNomination, getMyNominations, uploadSchedule } from "./nomination.controllers";
+import {
+  createNomination,
+  getAllNominations,
+  getMyNominations,
+  uploadSchedule,
+} from "./nomination.controllers";
 
 const authRoutes = (fastify: FastifyInstance) => {
   fastify.post(
@@ -29,6 +34,7 @@ const authRoutes = (fastify: FastifyInstance) => {
     getMyNominations
   );
 
+  fastify.get("/all", { preHandler: verifyUser("admin") }, getAllNominations);
 };
 
 export default authRoutes;

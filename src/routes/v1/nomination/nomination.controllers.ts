@@ -47,11 +47,11 @@ export const createNomination = async (request, reply) => {
       });
     }
     const randomNum = Math.floor(100000 + Math.random() * 900000);
-    
+
     const nomination = await prisma.nomination.create({
       data: {
         commodityType,
-        nominationId:`#${randomNum}`,
+        nominationId: `#${randomNum}`,
         Origin,
         volume,
         destination,
@@ -215,6 +215,102 @@ export const getMyNominations = async (request, reply) => {
     return reply.status(200).send({
       success: true,
       message: "Nominations retrieved successfully",
+      data: formattedNominations,
+      pagination: {
+        totalItems,
+        totalPages,
+        currentPage: page,
+        itemsPerPage: limit,
+        hasNextPage,
+        hasPrevPage,
+      },
+      count: formattedNominations.length,
+    });
+  } catch (error) {
+    request.log.error(error);
+    return reply.code(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+export const getAllNominations = async (request, reply) => {
+  try {
+    const prisma = request.server.prisma;
+
+    const page = parseInt(request.query.page) || 1;
+    const limit = parseInt(request.query.limit) || 10;
+    const startDate = request.query.startDate
+      ? new Date(request.query.startDate)
+      : null;
+    const endDate = request.query.endDate
+      ? new Date(request.query.endDate)
+      : null;
+
+    const skip = (page - 1) * limit;
+
+    const whereClause: any = {};
+
+    if (startDate && endDate) {
+      whereClause.requestedDate = {
+        gte: startDate,
+        lte: endDate,
+      };
+    } else if (startDate) {
+      whereClause.requestedDate = {
+        gte: startDate,
+      };
+    } else if (endDate) {
+      whereClause.requestedDate = {
+        lte: endDate,
+      };
+    }
+
+    const totalItems = await prisma.nomination.count({
+      where: whereClause,
+    });
+
+    const nominations = await prisma.nomination.findMany({
+      where: whereClause,
+      skip,
+      take: limit,
+      orderBy: {
+        id: "desc",
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            avatar: true,
+          },
+        },
+      },
+    });
+
+    const formattedNominations = nominations.map((nomination) => ({
+      ...nomination,
+      scheduleFile: nomination.scheduleFile
+        ? getImageUrl(`/uploads/${nomination.scheduleFile}`)
+        : null,
+      user: {
+        ...nomination.user,
+        avatar: nomination.user?.avatar
+          ? getImageUrl(`/uploads/${nomination.user.avatar}`)
+          : null,
+      },
+    }));
+
+    const totalPages = Math.ceil(totalItems / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
+    return reply.status(200).send({
+      success: true,
+      message: "All nominations retrieved successfully",
       data: formattedNominations,
       pagination: {
         totalItems,
