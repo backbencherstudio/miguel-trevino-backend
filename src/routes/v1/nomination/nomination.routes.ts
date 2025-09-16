@@ -9,7 +9,7 @@ import {
   uploadSchedule,
 } from "./nomination.controllers";
 
-const authRoutes = (fastify: FastifyInstance) => {
+const nominationRoutes = (fastify: FastifyInstance) => {
   fastify.post(
     "/create",
     {
@@ -37,4 +37,4 @@ const authRoutes = (fastify: FastifyInstance) => {
   fastify.get("/all", { preHandler: verifyUser("admin") }, getAllNominations);
 };
 
-export default authRoutes;
+export default nominationRoutes;

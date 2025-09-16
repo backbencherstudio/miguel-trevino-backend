@@ -5,10 +5,10 @@ import { verifyUser } from "../../../middleware/auth.middleware";
 import { uploadSchedule } from "./schedule.controllers";
 
 
-const authRoutes = (fastify: FastifyInstance) => {
+const scheduleRoutes = (fastify: FastifyInstance) => {
 
   fastify.post(
-    "/schedule/:",
+    "/",
     {
       preHandler: [verifyUser("admin"), upload.single("scheduleFile")],
     },
@@ -17,4 +17,4 @@ const authRoutes = (fastify: FastifyInstance) => {
 
 };
 
-export default authRoutes;
+export default scheduleRoutes;

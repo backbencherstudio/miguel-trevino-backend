@@ -2,10 +2,10 @@ import { FastifyInstance } from "fastify";
 import { getMeetingsData } from "./meetings.controllers";
 import { verifyUser } from "../../../middleware/auth.middleware";
 
-const authRoutes = (fastify: FastifyInstance) => {
+const meetingRoutes = (fastify: FastifyInstance) => {
 
   fastify.get("/",{preHandler: verifyUser("user", "admin")},getMeetingsData);
   
 };
 
-export default authRoutes;
+export default meetingRoutes;
