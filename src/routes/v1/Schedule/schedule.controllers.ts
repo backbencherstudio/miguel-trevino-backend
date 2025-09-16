@@ -174,10 +174,18 @@ export const getMySchedules = async (request, reply) => {
       });
     }
 
+    const page = Number(request.query?.page) || 1;
+    const limit = Number(request.query?.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const totalItems = await prisma.schedule.count({
+      where: { assignTo: userId },
+    });
+
     const schedules = await prisma.schedule.findMany({
-      where: {
-        assignTo: userId,
-      },
+      where: { assignTo: userId },
+      skip,
+      take: limit,
       include: {
         user: {
           select: {
@@ -188,9 +196,7 @@ export const getMySchedules = async (request, reply) => {
           },
         },
       },
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy: { createdAt: "desc" },
     });
 
     const formattedSchedules = schedules.map((schedule) => ({
@@ -204,10 +210,20 @@ export const getMySchedules = async (request, reply) => {
       },
     }));
 
+    const totalPages = Math.ceil(totalItems / limit);
+
     return reply.status(200).send({
       success: true,
       message: "Your schedules fetched successfully",
       data: formattedSchedules,
+      pagination: {
+        totalItems,
+        totalPages,
+        currentPage: page,
+        itemsPerPage: limit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
     });
   } catch (error) {
     request.log.error(error);

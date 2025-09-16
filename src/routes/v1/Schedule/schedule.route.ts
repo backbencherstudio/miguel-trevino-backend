@@ -2,7 +2,11 @@ import { FastifyInstance } from "fastify";
 
 import { upload } from "../../../config/storage.config";
 import { verifyUser } from "../../../middleware/auth.middleware";
-import { getAllSchedules, getMySchedules, uploadSchedule } from "./schedule.controllers";
+import {
+  getAllSchedules,
+  getMySchedules,
+  uploadSchedule,
+} from "./schedule.controllers";
 
 const scheduleRoutes = (fastify: FastifyInstance) => {
   fastify.post(
