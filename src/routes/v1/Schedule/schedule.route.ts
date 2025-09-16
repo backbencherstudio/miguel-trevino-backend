@@ -5,6 +5,7 @@ import { verifyUser } from "../../../middleware/auth.middleware";
 import {
   getAllSchedules,
   getMySchedules,
+  updateSchedule,
   uploadSchedule,
 } from "./schedule.controllers";
 
@@ -31,6 +32,14 @@ const scheduleRoutes = (fastify: FastifyInstance) => {
       preHandler: [verifyUser("user")],
     },
     getMySchedules
+  );
+
+  fastify.put(
+    "/:id",
+    {
+      preHandler: [verifyUser("admin"), upload.single("scheduleFile")],
+    },
+    updateSchedule
   );
 };
 

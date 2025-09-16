@@ -95,7 +95,6 @@ export const uploadSchedule = async (request, reply) => {
   }
 };
 
-
 export const getAllSchedules = async (request, reply) => {
   try {
     const prisma = request.server.prisma;
@@ -159,7 +158,6 @@ export const getAllSchedules = async (request, reply) => {
     });
   }
 };
-
 
 export const getMySchedules = async (request, reply) => {
   try {
@@ -227,6 +225,96 @@ export const getMySchedules = async (request, reply) => {
     });
   } catch (error) {
     request.log.error(error);
+    return reply.status(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+export const updateSchedule = async (request, reply) => {
+  try {
+    const prisma = request.server.prisma;
+    const scheduleId = request.params?.id;
+    const { assignTo, commodityType, transportMode } = request.body;
+
+    const existingSchedule = await prisma.schedule.findUnique({
+      where: { id: scheduleId },
+    });
+
+    if (!existingSchedule) {
+      if (request.file?.path && fs.existsSync(request.file.path)) {
+        fs.unlinkSync(request.file.path);
+      }
+      return reply.status(404).send({
+        success: false,
+        message: "Schedule not found",
+      });
+    }
+
+    const dataToUpdate: any = {};
+
+    if (commodityType) dataToUpdate.commodityType = commodityType;
+    if (transportMode) dataToUpdate.transportMode = transportMode;
+
+    if (assignTo) {
+      const user = await prisma.user.findUnique({ where: { id: assignTo } });
+      if (!user) {
+        if (request.file?.path && fs.existsSync(request.file.path)) {
+          fs.unlinkSync(request.file.path);
+        }
+        return reply.status(400).send({
+          success: false,
+          message: "User not found for assignTo",
+        });
+      }
+      dataToUpdate.user = { connect: { id: assignTo } };
+    }
+
+    if (request.file) {
+      if (fs.existsSync(path.join(uploadsDir, existingSchedule.scheduleFile))) {
+        fs.unlinkSync(path.join(uploadsDir, existingSchedule.scheduleFile));
+      }
+      dataToUpdate.scheduleFile = request.file.filename;
+    }
+
+    const updatedSchedule = await prisma.schedule.update({
+      where: { id: scheduleId },
+      data: dataToUpdate,
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            avatar: true,
+          },
+        },
+      },
+    });
+
+    return reply.status(200).send({
+      success: true,
+      message: "Schedule updated successfully",
+      data: {
+        ...updatedSchedule,
+        scheduleFile: getImageUrl(`/uploads/${updatedSchedule.scheduleFile}`),
+        user: {
+          ...updatedSchedule.user,
+          avatar: updatedSchedule.user?.avatar
+            ? getImageUrl(`/uploads/${updatedSchedule.user.avatar}`)
+            : null,
+        },
+      },
+    });
+  } catch (error) {
+    request.log.error(error);
+
+    if (request.file?.path && fs.existsSync(request.file.path)) {
+      fs.unlinkSync(request.file.path);
+    }
+
     return reply.status(500).send({
       success: false,
       message: "Internal Server Error",
