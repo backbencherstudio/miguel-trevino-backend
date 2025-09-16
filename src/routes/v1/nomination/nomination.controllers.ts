@@ -331,3 +331,50 @@ export const getAllNominations = async (request, reply) => {
     });
   }
 };
+
+export const updateNominationStatus = async (request, reply) => {
+  try {
+    const prisma = request.server.prisma;
+    const { nominationId } = request.params;
+
+    
+    if (!nominationId) {
+      return reply.status(400).send({
+        success: false,
+        message: "nominationId is required!",
+      });
+    }
+
+    const nomination = await prisma.nomination.findUnique({
+      where: { id: nominationId },
+      select: { status: true },
+    });
+
+    if (!nomination) {
+      return reply.status(404).send({
+        success: false,
+        message: "Nomination not found!",
+      });
+    }
+
+    const newStatus = nomination.status === "Submitted" ? "Confirmed" : "Submitted";
+
+    const updatedNomination = await prisma.nomination.update({
+      where: { id: nominationId },
+      data: { status: newStatus },
+    });
+
+    return reply.status(200).send({
+      success: true,
+      message: `Nomination status updated to ${newStatus}`,
+      data: updatedNomination,
+    });
+  } catch (error) {
+    request.log.error(error);
+    return reply.code(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
