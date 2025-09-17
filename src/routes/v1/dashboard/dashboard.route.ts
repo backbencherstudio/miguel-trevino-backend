@@ -2,7 +2,7 @@ import { FastifyInstance } from "fastify";
 
 import { upload } from "../../../config/storage.config";
 import { verifyUser } from "../../../middleware/auth.middleware";
-import { dashboardCalculation } from "./dashboard.controller";
+import { dashboardCalculation, getScheduleStatistics } from "./dashboard.controller";
 
 const dashboardRoutes = (fastify: FastifyInstance) => {
   fastify.get(
@@ -12,6 +12,8 @@ const dashboardRoutes = (fastify: FastifyInstance) => {
     // },
     dashboardCalculation
   );
+
+  fastify.get('/schedule-statistics', getScheduleStatistics);
 };
 
 export default dashboardRoutes;

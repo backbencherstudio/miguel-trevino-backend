@@ -45,11 +45,13 @@ model User {
   type userStatus @default(user)
 
   //relations
-  nominations nomination[]
+  nominations  nomination[]
+  schedule     schedule[]
+  chatThread   chatRoom?
+  chatMessages messages[]
 
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  schedule  schedule[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("users")
 }
@@ -130,6 +132,34 @@ model schedule {
   commodityType CommodityTypes
   transportMode TransportModes
   scheduleFile  String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model chatRoom {
+  id       String     @id @default(cuid())
+  userId   String     @unique
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages messages[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model messages {
+  id         String   @id @default(cuid())
+  chatRoomId String
+  thread     chatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+
+  senderId String
+  sender   User   @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  content String
+
+  // helpful metadata
+  isAdmin Boolean
+  read    Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -137,3 +137,51 @@ export const dashboardCalculation = async (request, reply) => {
     });
   }
 };
+
+
+
+export const getScheduleStatistics = async (request, reply) => {
+  try {
+    const prisma = request.server.prisma;
+    const { year = new Date().getFullYear() } = request.query;
+
+    const monthlyData = await prisma.$queryRaw`
+      SELECT 
+        EXTRACT(MONTH FROM "createdAt") as month,
+        COUNT(*) as count
+      FROM "schedules"
+      WHERE EXTRACT(YEAR FROM "createdAt") = ${Number(year)}
+      GROUP BY EXTRACT(MONTH FROM "createdAt")
+      ORDER BY month
+    `;
+
+    const monthNames = ["January", "February", "March", "April", "May", "June", 
+                        "July", "August", "September", "October", "November", "December"];
+
+    const chartData = monthNames.map((monthName, index) => ({
+      month: monthName,
+      schedules: 0
+    }));
+
+    monthlyData.forEach(item => {
+      const monthIndex = parseInt(item.month) - 1;
+      if (monthIndex >= 0 && monthIndex < 12) {
+        chartData[monthIndex].schedules = parseInt(item.count);
+      }
+    });
+
+    return reply.status(200).send({
+      success: true,
+      message: "Schedule statistics fetched successfully",
+      data: chartData,
+      year: parseInt(year)
+    });
+  } catch (error) {
+    request.log.error(error);
+    return reply.status(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
