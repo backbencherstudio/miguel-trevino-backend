@@ -150,7 +150,7 @@ model chatRoom {
 model messages {
   id         String   @id @default(cuid())
   chatRoomId String
-  thread     chatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  chatRoom     chatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
 
   senderId String
   sender   User   @relation(fields: [senderId], references: [id], onDelete: Cascade)
@@ -158,7 +158,6 @@ model messages {
   content String
 
   // helpful metadata
-  isAdmin Boolean
   read    Boolean @default(false)
 
   createdAt DateTime @default(now())

@@ -159,6 +159,14 @@ export const registerVerifyOtp = async (request, reply) => {
       },
     });
 
+    const chatRoom = await prisma.chatRoom.create({
+      data: {
+        userId: newUser.id,
+      },
+    });
+
+    console.log("roome :", chatRoom);
+
     await redis.del(`register-verify-otp:${email}`);
 
     const token = generateJwtToken({
@@ -296,6 +304,19 @@ export const googleAuth = async (request, reply) => {
         ...(processedAvatar && { avatar: processedAvatar }),
       },
     });
+
+    const chatRoom = await prisma.chatRoom.create({
+      data: {
+        userId: newUser.id,
+      },
+    });
+
+    if (chatRoom) {
+      console.log("chatRoom: ", chatRoom);
+    }
+    console.log(chatRoom);
+
+    console.log("roome :", chatRoom);
 
     const token = generateJwtToken({
       id: newUser.id,
