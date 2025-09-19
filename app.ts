@@ -34,6 +34,7 @@ app.setNotFoundHandler((request, reply) => {
   });
 });
 
+
 app.setErrorHandler((error, request, reply) => {
   request.log.error(error);
   reply.status(500).send({
