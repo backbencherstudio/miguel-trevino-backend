@@ -145,6 +145,8 @@ model chatRoom {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt]) 
 }
 
 model messages {
@@ -162,4 +164,5 @@ model messages {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  @@index([chatRoomId, createdAt])  
 }
