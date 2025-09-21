@@ -124,7 +124,8 @@ enum TransportModes {
 
 enum NominationStatus {
   Submitted
-  Confirmed
+  Complete
+  Withdraw
 }
 
 model schedule {
@@ -189,8 +190,9 @@ model Notification {
 
 enum NotificationType {
   NominationSubmitted
-  NominationApproved
-  NominationRejected
+  NominationComplete
+  NominationWithdraw
   ScheduleAssigned
   message
 }
+
