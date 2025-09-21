@@ -126,7 +126,6 @@ export const sendMessage = async (request, reply) => {
     const senderId = request.user.id;
     const senderType = request.user.type;
 
-
     const missingField = ["chatRoomId", "content"].find(
       (field) => !request.body[field]
     );
@@ -159,6 +158,8 @@ export const sendMessage = async (request, reply) => {
         },
       },
     });
+    
+    request.server.io.to(chatRoomId).emit("new_message", message);
 
     return reply.send({
       success: true,
@@ -167,7 +168,7 @@ export const sendMessage = async (request, reply) => {
     });
   } catch (error) {
     request.log.error(error);
-    
+
     return reply.status(500).send({
       success: false,
       message: "Internal Server Error",

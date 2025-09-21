@@ -49,6 +49,7 @@ model User {
   schedule     schedule[]
   chatThread   chatRoom?
   chatMessages messages[]
+  notification Notification[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -75,6 +76,7 @@ model nomination {
   BeginningDate DateTime
   EndDate       DateTime
   Notes         String?
+  Connection    String
 
   //relations
   userId String
@@ -146,13 +148,13 @@ model chatRoom {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([userId, createdAt]) 
+  @@index([userId, createdAt])
 }
 
 model messages {
   id         String   @id @default(cuid())
   chatRoomId String
-  chatRoom     chatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  chatRoom   chatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
 
   senderId String
   sender   User   @relation(fields: [senderId], references: [id], onDelete: Cascade)
@@ -160,9 +162,35 @@ model messages {
   content String
 
   // helpful metadata
-  read    Boolean @default(false)
+  read Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  @@index([chatRoomId, createdAt])  
+
+  @@index([chatRoomId, createdAt])
+}
+
+model Notification {
+  id     String @id @default(cuid())
+  userId String //এখানে ইউজার টা হবে যাকে আমি নটিফিকেশন পাঠাবো সে
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type    NotificationType
+  title   String?
+  message String?
+  eventId String?
+  read    Boolean          @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt])
+}
+
+enum NotificationType {
+  NominationSubmitted
+  NominationApproved
+  NominationRejected
+  ScheduleAssigned
+  message
 }

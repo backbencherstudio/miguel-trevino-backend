@@ -16,6 +16,7 @@ export const createNomination = async (request, reply) => {
       EndDate,
       Notes,
       userId,
+      Connection,
     } = request.body;
 
     const missingField = [
@@ -27,6 +28,7 @@ export const createNomination = async (request, reply) => {
       "transportMode",
       "BeginningDate",
       "EndDate",
+      "Connection",
     ].find((field) => !request.body[field]);
 
     if (missingField) {
@@ -62,6 +64,7 @@ export const createNomination = async (request, reply) => {
         Notes,
         userId: userIde,
         status: admin === "admin" ? "Confirmed" : "Submitted",
+        Connection,
       },
     });
 
@@ -337,7 +340,6 @@ export const updateNominationStatus = async (request, reply) => {
     const prisma = request.server.prisma;
     const { nominationId } = request.params;
 
-    
     if (!nominationId) {
       return reply.status(400).send({
         success: false,
@@ -357,7 +359,8 @@ export const updateNominationStatus = async (request, reply) => {
       });
     }
 
-    const newStatus = nomination.status === "Submitted" ? "Confirmed" : "Submitted";
+    const newStatus =
+      nomination.status === "Submitted" ? "Confirmed" : "Submitted";
 
     const updatedNomination = await prisma.nomination.update({
       where: { id: nominationId },
