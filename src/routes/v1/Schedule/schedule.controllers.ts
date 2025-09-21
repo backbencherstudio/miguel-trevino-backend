@@ -3,94 +3,53 @@ import path from "path";
 import { getImageUrl } from "../../../utils/baseurl";
 import { uploadsDir } from "../../../config/storage.config";
 
-export const uploadSchedule = async (request, reply) => {
+export const getMyNotifications = async (request, reply) => {
   try {
-    const { assignTo, commodityType, transportMode } = request.body;
-
-    const missingField = ["assignTo", "commodityType", "transportMode"].find(
-      (field) => !request.body[field]
-    );
-
-    if (missingField) {
-      if (request.file?.path && fs.existsSync(request.file.path)) {
-        fs.unlinkSync(request.file.path);
-      }
-      return reply.status(400).send({
-        success: false,
-        message: `${missingField} is required!`,
-      });
-    }
-
-    if (!request.file) {
-      return reply.status(400).send({
-        success: false,
-        message: "scheduleFile is required!",
-      });
-    }
-
     const prisma = request.server.prisma;
+    const { id } = request.user;
 
-    const user = await prisma.user.findUnique({
-      where: { id: assignTo },
-      select: { id: true, avatar: true },
+    const page = parseInt(request.query.page as string) || 1;
+    const limit = parseInt(request.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
+
+    const totalItems = await prisma.notification.count({
+      where: { userId: id },
     });
 
-    if (!user) {
-      if (request.file?.path && fs.existsSync(request.file.path)) {
-        fs.unlinkSync(request.file.path);
-      }
-      return reply.status(400).send({
-        success: false,
-        message: "User not found for assignTo",
-      });
-    }
-
-    const schedule = await prisma.schedule.create({
-      data: {
-        commodityType,
-        transportMode,
-        scheduleFile: request.file.filename,
-        user: {
-          connect: { id: assignTo },
-        },
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            fullName: true,
-            email: true,
-            avatar: true,
-          },
-        },
-      },
+    const unreadCount = await prisma.notification.count({
+      where: { userId: id, read: false },
     });
+
+    const notifications = await prisma.notification.findMany({
+      where: { userId: id },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+    });
+
+    const totalPages = Math.ceil(totalItems / limit);
 
     return reply.status(200).send({
       success: true,
-      message: "Schedule uploaded successfully",
-      data: {
-        ...schedule,
-        scheduleFile: getImageUrl(`/uploads/${request.file.filename}`),
-        user: {
-          ...schedule.user,
-          avatar: schedule.user?.avatar
-            ? getImageUrl(`/uploads/${schedule.user.avatar}`)
-            : null,
-        },
+      message: "Notifications retrieved successfully",
+      data: notifications,
+      count: notifications.length,
+      unreadCount: unreadCount,  
+      pagination: {
+        unreadCount: unreadCount,
+        totalItems,
+        totalPages,
+        currentPage: page,
+        itemsPerPage: limit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
       },
     });
   } catch (error) {
     request.log.error(error);
-
-    if (request.file?.path && fs.existsSync(request.file.path)) {
-      fs.unlinkSync(request.file.path);
-    }
-
     return reply.code(500).send({
       success: false,
       message: "Internal Server Error",
-      error: error instanceof Error ? error.message : "Unknown error",
     });
   }
 };

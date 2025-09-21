@@ -2,28 +2,54 @@ import { getImageUrl } from "../../../utils/baseurl";
 
 export const getMyNotifications = async (request, reply) => {
   try {
-    const prisma = request.server.prisma;
-    const { id } = request.user;
+    const { prisma } = request.server;
+    const { id: userId } = request.user;
+    const { page = 1, limit = 10 } = request.query;
+
+    const currentPage = Math.max(1, Number(page));
+    const itemsPerPage = Math.max(1, Math.min(Number(limit), 100));
+    const skip = (currentPage - 1) * itemsPerPage;
+
+    const [totalItems, unreadCount] = await Promise.all([
+      prisma.notification.count({ where: { userId } }),
+      prisma.notification.count({ where: { userId, read: false } })
+    ]);
 
     const notifications = await prisma.notification.findMany({
-      where: { userId: id },
+      where: { userId },
       orderBy: { createdAt: "desc" },
+      skip,
+      take: itemsPerPage,
     });
+
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    const hasNextPage = currentPage < totalPages;
+    const hasPrevPage = currentPage > 1;
 
     return reply.status(200).send({
       success: true,
       message: "Notifications retrieved successfully",
       data: notifications,
       count: notifications.length,
+      unreadCount,
+      pagination: {
+        totalItems,
+        totalPages,
+        currentPage,
+        itemsPerPage,
+        hasNextPage,
+        hasPrevPage,
+      },
     });
   } catch (error) {
     request.log.error(error);
-    return reply.code(500).send({
+    return reply.status(500).send({
       success: false,
       message: "Internal Server Error",
     });
   }
 };
+
 
 export const readAllNotifications = async (request, reply) => {
   try {
