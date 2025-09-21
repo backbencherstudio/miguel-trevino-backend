@@ -68,6 +68,37 @@ export const createNomination = async (request, reply) => {
       },
     });
 
+    if (admin === "admin") {
+      await prisma.notification.create({
+        data: {
+          userId: userIde,
+          type: "NominationApproved",
+          title: "New Nomination Assigned",
+          message: `Admin has created a nomination #${nomination.nominationId} for you.`,
+          eventId: nomination.id,
+        },
+      });
+    } else {
+      const adminIds = (
+        await prisma.user.findMany({
+          where: { type: "admin" },
+          select: { id: true },
+        })
+      ).map((a) => a.id);
+
+      if (adminIds.length > 0) {
+        await prisma.notification.createMany({
+          data: adminIds.map((id) => ({
+            userId: id,
+            type: "NominationSubmitted",
+            title: "New Nomination Submitted",
+            message: `A user has submitted a nomination #${nomination.nominationId}.`,
+            eventId: nomination.id,
+          })),
+        });
+      }
+    }
+
     const { userId: _, ...withoutId } = nomination;
 
     return reply.status(200).send({
