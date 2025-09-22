@@ -11,7 +11,7 @@ export default fp(async (fastify) => {
     fastify.log.info("Socket connected: " + socket.id)
     socket.on("message", (msg) => {
       fastify.log.info("Received: " + msg)
-    })
+    }) 
   })
 
   fastify.decorate("io", io)

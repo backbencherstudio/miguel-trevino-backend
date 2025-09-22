@@ -2,24 +2,28 @@ import { FastifyInstance } from "fastify";
 
 import { upload } from "../../../config/storage.config";
 import { verifyUser } from "../../../middleware/auth.middleware";
-import { getAllChatRooms, getChatformRoom, sendMessage } from "./message.controllers";
+import {
+  getAllChatRooms,
+  getChatformRoom,
+  sendMessage,
+} from "./message.controllers";
 
 const messagenRoutes = (fastify: FastifyInstance) => {
-
   fastify.get("/rooms", { preHandler: verifyUser("admin") }, getAllChatRooms);
-  fastify.get("/rooms/:roomId", { preHandler: verifyUser("admin", "user") }, getChatformRoom);
+  fastify.get(
+    "/rooms/:roomId",
+    { preHandler: verifyUser("admin", "user") },
+    getChatformRoom
+  );
 
-  fastify.post("/send-message", { preHandler: verifyUser("admin", "user") }, sendMessage);
+  fastify.post(
+    "/send-message",
+    { preHandler: verifyUser("admin", "user") },
+    sendMessage
+  );
 };
 
 export default messagenRoutes;
-
-
-
-
-
-
-
 
 // import { FastifyInstance } from "fastify";
 

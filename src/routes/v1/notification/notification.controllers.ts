@@ -93,6 +93,7 @@ export const deleteNotifications = async (request, reply) => {
         userId: id,
       },
     });
+    
 
     return reply.status(200).send({
       success: true,

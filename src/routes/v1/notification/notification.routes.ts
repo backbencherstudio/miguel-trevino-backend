@@ -18,7 +18,8 @@ const notificationRoutes = (fastify: FastifyInstance) => {
     { preHandler: verifyUser("user", "admin") },
     readAllNotifications
   );
-
+ 
+  
   fastify.delete(
     "/delete-many",
     { preHandler: verifyUser("user", "admin") },
