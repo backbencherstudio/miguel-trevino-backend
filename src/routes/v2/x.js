@@ -1,0 +1,3 @@
+function checkInventory(){
+    console.log()
+}

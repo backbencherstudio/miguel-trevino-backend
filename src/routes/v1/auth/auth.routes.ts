@@ -4,6 +4,8 @@ import {
   registerSendOtp,
   registerVerifyOtp,
   googleAuth,
+  usersLogin,
+  adminLogin,
   forgotPasswordSendOtp,
   forgotPasswordVerifyOtp,
   forgotPasswordReset,
@@ -23,8 +25,13 @@ const authRoutes = (fastify: FastifyInstance) => {
   fastify.post("/register/verifyotp", registerVerifyOtp);
   fastify.post("/register/recentotp", getRecentOtp);
 
+  ///login
   //google auth
   fastify.post("/register/google", googleAuth);
+
+  //manual log
+  fastify.post("/user/login", usersLogin);
+  fastify.post("/admin/login", adminLogin);
 
   //forgot passwors
   fastify.post("/forgotpassword/sendotp", forgotPasswordSendOtp);

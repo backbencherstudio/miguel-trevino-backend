@@ -6,7 +6,7 @@ import {
   sendForgotPasswordOTP,
   sendTwoFactorOtp,
 } from "../../../utils/email.config";
-import jwt from "jsonwebtoken";
+
 import { generateJwtToken } from "../../../utils/jwt.utils";
 import { getImageUrl } from "../../../utils/baseurl";
 import path from "path";
@@ -244,6 +244,7 @@ export const getRecentOtp = async (request, reply) => {
   }
 };
 
+///login
 export const googleAuth = async (request, reply) => {
   const parseNameFromFullName = (fullName: string) => {
     const nameParts = fullName.trim().split(/\s+/);
@@ -344,6 +345,133 @@ export const googleAuth = async (request, reply) => {
     });
   }
 };
+
+export const usersLogin = async (request, reply) => {
+  try {
+    const { email, password } = request.body;
+
+    const missingField = ["email", "password"].find(
+      (field) => !request.body[field]
+    );
+
+    if (missingField) {
+      return reply.status(400).send({
+        success: false,
+        message: `${missingField} is required!`,
+      });
+    }
+    const prisma = request.server.prisma;
+
+    const user = await prisma.user.findUnique({ where: { email } });
+
+    if (!user || user.type === "admin") {
+      return reply.status(404).send({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const passwordMatch = await bcrypt.compare(password, user.password);
+
+    if (!passwordMatch) {
+      return reply.status(401).send({
+        success: false,
+        message: "Invalid password",
+      });
+    }
+
+    const token = generateJwtToken({
+      id: user.id,
+      email: user.email,
+      type: user.type,
+    });
+
+    const userResponse = {
+      ...user,
+      avatar: user.avatar ? getImageUrl(`/uploads/${user.avatar}`) : null,
+    };
+
+    delete userResponse.password;
+
+    return reply.status(200).send({
+      success: true,
+      message: "Login successful",
+      data: userResponse,
+      token,
+    });
+  } catch (error) {
+    request.log.error(error);
+    return reply.status(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+export const adminLogin = async (request, reply) => {
+  try {
+    const { email, password } = request.body;
+
+    const missingField = ["email", "password"].find(
+      (field) => !request.body[field]
+    );
+
+    if (missingField) {
+      return reply.status(400).send({
+        success: false,
+        message: `${missingField} is required!`,
+      });
+    }
+    const prisma = request.server.prisma;
+
+    const user = await prisma.user.findUnique({ where: { email } });
+
+    if (!user || user.type === "user") {
+      return reply.status(404).send({
+        success: false,
+        message: "Credential not match!", 
+      });
+    }
+
+    const passwordMatch = await bcrypt.compare(password, user.password);
+
+    if (!passwordMatch) {
+      return reply.status(401).send({
+        success: false,
+        message: "Invalid password",
+      });
+    }
+
+    const token = generateJwtToken({
+      id: user.id,
+      email: user.email,
+      type: user.type,
+    });
+
+    const userResponse = {
+      ...user,
+      avatar: user.avatar ? getImageUrl(`/uploads/${user.avatar}`) : null,
+    };
+
+    delete userResponse.password;
+
+    return reply.status(200).send({
+      success: true,
+      message: "admin Login successful",
+      data: userResponse,
+      token,
+    });
+  } catch (error) {
+    request.log.error(error);
+    return reply.status(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
 
 export const forgotPasswordSendOtp = async (request, reply) => {
   try {
