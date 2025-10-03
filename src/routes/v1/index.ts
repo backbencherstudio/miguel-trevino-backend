@@ -6,6 +6,7 @@ import schedule from "./schedule/schedule.route";
 import dashboard from "./dashboard/dashboard.route";
 import message from "./message/message.routes";
 import notification from "./notification/notification.routes"
+import users from "./users/users.routes";
 
 async function routesV1(fastify: FastifyInstance) {
   const moduleRoutes = [
@@ -15,7 +16,8 @@ async function routesV1(fastify: FastifyInstance) {
     { path: "/schedule", route: schedule },
     { path: "/dashboard", route: dashboard },
     { path: "/message", route: message },
-    { path: "/notification", route: notification }
+    { path: "/notification", route: notification },
+    { path: "/users", route: users }
   ];
 
   moduleRoutes.forEach(({ path, route }) => {

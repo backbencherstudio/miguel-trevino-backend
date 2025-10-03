@@ -42,6 +42,9 @@ model User {
   phoneAccess Boolean @default(false)
   pushAccess  Boolean @default(false)
 
+  // need admin parmition to active account otherqisw hw dont do anything
+  active Boolean @default(false)
+
   type userStatus @default(user)
 
   //relations
