@@ -2,7 +2,7 @@ import { FastifyInstance } from "fastify";
 
 import { upload } from "../../../config/storage.config";
 import { verifyUser } from "../../../middleware/auth.middleware";
-import { getAllusers } from "./users.coontrollers";
+import { deactiveToActiveUser, getAllusers } from "./users.coontrollers";
 
 const userRoutes = (fastify: FastifyInstance) => {
   fastify.get(
@@ -11,6 +11,14 @@ const userRoutes = (fastify: FastifyInstance) => {
       preHandler: verifyUser("admin"),
     },
     getAllusers
+  );
+
+  fastify.post(
+    "/toactive/:userId",
+    {
+      preHandler: verifyUser("admin"),
+    },
+    deactiveToActiveUser
   );
 };
 
