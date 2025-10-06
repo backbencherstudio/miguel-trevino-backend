@@ -68,18 +68,19 @@ enum userStatus {
 model nomination {
   id            String         @id @default(cuid())
   nominationId  String         @unique
+  assetGroup    String
   commodityType CommodityTypes
-  Origin        String
+  origin        String
   volume        Volumes
   destination   String
   unit          Units
   transportMode TransportModes
 
   // Scheduling & Additional Information
-  BeginningDate DateTime
-  EndDate       DateTime
-  Notes         String?
-  Connection    String
+  beginningDate DateTime
+  endDate       DateTime
+  notes         String?
+  connection    String
 
   //relations
   userId String

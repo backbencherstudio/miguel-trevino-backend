@@ -7,28 +7,30 @@ export const createNomination = async (request, reply) => {
   try {
     const {
       commodityType,
-      Origin,
+      assetGroup,
+      origin,
       volume,
       destination,
       unit,
       transportMode,
-      BeginningDate,
-      EndDate,
-      Notes,
+      beginningDate,
+      endDate,
+      notes,
       userId,
-      Connection,
+      connection,
     } = request.body;
 
     const missingField = [
       "commodityType",
-      "Origin",
+      "assetGroup",
+      "origin",
       "volume",
       "destination",
       "unit",
       "transportMode",
-      "BeginningDate",
-      "EndDate",
-      "Connection",
+      "beginningDate",
+      "endDate",
+      "connection",
     ].find((field) => !request.body[field]);
 
     if (missingField) {
@@ -41,6 +43,7 @@ export const createNomination = async (request, reply) => {
     const prisma = request.server.prisma;
     const admin = request.user?.type;
     const userIde = admin === "admin" ? userId : request.user?.id;
+ 
 
     if (admin === "admin" && !userId) {
       return reply.status(400).send({
@@ -48,23 +51,37 @@ export const createNomination = async (request, reply) => {
         message: "user entity require",
       });
     }
+
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userIde },
+      select: { id: true },
+    });
+
+    
+    if (!targetUser) {
+      return reply.status(400).send({
+        success: false,
+        message: "Invalid userId. User does not exist.",
+      });
+    }
     const randomNum = Math.floor(100000 + Math.random() * 900000);
 
     const nomination = await prisma.nomination.create({
       data: {
         commodityType,
+        assetGroup,
         nominationId: `#${randomNum}`,
-        Origin,
+        origin,
         volume,
         destination,
         unit,
         transportMode,
-        BeginningDate,
-        EndDate,
-        Notes,
+        beginningDate,
+        endDate,
+        notes,
         userId: userIde,
-        status: admin === "admin" ? "Confirmed" : "Submitted",
-        Connection,
+        status: admin === "admin" ? "Complete" : "Submitted",
+        connection,
       },
     });
 
@@ -72,7 +89,7 @@ export const createNomination = async (request, reply) => {
       await prisma.notification.create({
         data: {
           userId: userIde,
-          type: "NominationApproved",
+          type: "NominationComplete",
           title: "New Nomination Assigned",
           message: `Admin has created a nomination #${nomination.nominationId} for you.`,
           eventId: nomination.id,
@@ -391,7 +408,7 @@ export const updateNominationStatus = async (request, reply) => {
     }
 
     const newStatus =
-      nomination.status === "Submitted" ? "Confirmed" : "Submitted";
+      nomination.status === "Submitted" ? "Complete" : "Submitted";
 
     const updatedNomination = await prisma.nomination.update({
       where: { id: nominationId },

@@ -6,10 +6,16 @@ import {
   getAllChatRooms,
   getChatformRoom,
   sendMessage,
+  getUserChatRoom
 } from "./message.controllers";
 
 const messagenRoutes = (fastify: FastifyInstance) => {
+  
   fastify.get("/rooms", { preHandler: verifyUser("admin") }, getAllChatRooms);
+  
+  //ইউজারের ক্ষেত্রে একটা হার্ড কোডেড নেইম আর ইমেইজ ব্যবহার করতে হবে
+  fastify.get("/my-room", { preHandler: verifyUser("user") }, getUserChatRoom);
+
   fastify.get(
     "/rooms/:roomId",
     { preHandler: verifyUser("admin", "user") },

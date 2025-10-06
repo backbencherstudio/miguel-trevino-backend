@@ -1,3 +1,54 @@
+// export const getAllChatRooms = async (request, reply) => {
+//   try {
+//     const prisma = request.server.prisma;
+
+import { getImageUrl } from "../../../utils/baseurl";
+
+//     const page = parseInt(request.query.page) || 1;
+//     const limit = parseInt(request.query.limit) || 10;
+//     const skip = (page - 1) * limit;
+
+//     const totalItems = await prisma.chatRoom.count();
+
+//     const rooms = await prisma.chatRoom.findMany({
+//       skip,
+//       take: limit,
+//       orderBy: { updatedAt: "desc" },
+//       include: {
+//         user: {
+//           select: { id: true, fullName: true, email: true, avatar: true },
+//         },
+//         messages: {
+//           orderBy: { createdAt: "desc" },
+//           take: 1,
+//           include: {
+//             sender: {
+//               select: { id: true, fullName: true, type: true, avatar: true },
+//             },
+//           },
+//         },
+//       },
+//     });
+
+//     return reply.send({
+//       success: true,
+//       message: "Chat rooms retrieved successfully",
+//       data: rooms,
+//       pagination: {
+//         totalItems,
+//         currentPage: page,
+//         itemsPerPage: limit,
+//         totalPages: Math.ceil(totalItems / limit),
+//       },
+//     });
+//   } catch (err) {
+//     request.log.error(err);
+//     return reply
+//       .status(500)
+//       .send({ success: false, message: "Internal Server Error" });
+//   }
+// };
+
 export const getAllChatRooms = async (request, reply) => {
   try {
     const prisma = request.server.prisma;
@@ -8,7 +59,7 @@ export const getAllChatRooms = async (request, reply) => {
 
     const totalItems = await prisma.chatRoom.count();
 
-    const rooms = await prisma.chatRoom.findMany({
+    const chatRooms = await prisma.chatRoom.findMany({
       skip,
       take: limit,
       orderBy: { updatedAt: "desc" },
@@ -21,17 +72,47 @@ export const getAllChatRooms = async (request, reply) => {
           take: 1,
           include: {
             sender: {
-              select: { id: true, fullName: true, type: true, avatar: true },
+              select: {
+                id: true,
+                fullName: true,
+                type: true,
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            messages: {
+              where: { read: false },
             },
           },
         },
       },
     });
 
+    const rooms = chatRooms.map((room) => ({
+      id: room.id,
+      createdAt: room.createdAt,
+      updatedAt: room.updatedAt,
+      user: {
+        ...room.user,
+        avatar: room.user.avatar ? getImageUrl(room.user.avatar) : null,
+      },
+      lastMessage: room.messages[0]
+        ? {
+            id: room.messages[0].id,
+            content: room.messages[0].content,
+            createdAt: room.messages[0].createdAt,
+            sender: room.messages[0].sender,
+          }
+        : null,
+      unreadCount: room._count?.messages || 0,
+    }));
+
     return reply.send({
       success: true,
       message: "Chat rooms retrieved successfully",
-      data: rooms,
+      data: { rooms },
       pagination: {
         totalItems,
         currentPage: page,
@@ -46,6 +127,78 @@ export const getAllChatRooms = async (request, reply) => {
       .send({ success: false, message: "Internal Server Error" });
   }
 };
+
+
+export const getUserChatRoom = async (request, reply) => {
+  try {
+    const prisma = request.server.prisma;
+    const { id } = request.user;
+
+    const chatRoom = await prisma.chatRoom.findUnique({
+      where: { userId: id },
+      include: {
+        user: {
+          select: { id: true, fullName: true, email: true, avatar: true },
+        },
+        messages: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          include: {
+            sender: {
+              select: { id: true, fullName: true, type: true},
+            },
+          },
+        },
+        _count: {
+          select: { messages: { where: { read: false } } },
+        },
+      },
+    });
+
+    if (!chatRoom) {
+      return reply.status(404).send({
+        success: false,
+        message: "Chat room not found",
+      });
+    }
+
+    const room = {
+      id: chatRoom.id,
+      createdAt: chatRoom.createdAt,
+      updatedAt: chatRoom.updatedAt,
+      user: {
+        ...chatRoom.user,
+        avatar: chatRoom.user.avatar ? getImageUrl(chatRoom.user.avatar) : null,
+      },
+      lastMessage: chatRoom.messages[0]
+        ? {
+            id: chatRoom.messages[0].id,
+            content: chatRoom.messages[0].content,
+            createdAt: chatRoom.messages[0].createdAt,
+            sender: {
+              ...chatRoom.messages[0].sender,
+            },
+          }
+        : null,
+      unreadCount: chatRoom._count?.messages || 0,
+    };
+
+    return reply.status(200).send({
+      success: true,
+      message: "Chat room retrieved successfully",
+      data: { room },
+    });
+  } catch (err) {
+    request.log.error(err);
+    return reply.status(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: err.message,
+    });
+  }
+};
+
+
 
 export const getChatformRoom = async (request, reply) => {
   try {
@@ -67,28 +220,28 @@ export const getChatformRoom = async (request, reply) => {
     const chatRoom = await prisma.chatRoom.findUnique({
       where: { id: roomId },
       include: {
-        user: {
-          select: {
-            id: true,
-            type: true,
-            avatar: true,
-            fullName: true,
-          },
-        },
+        // user: {
+        //   select: {
+        //     id: true,
+        //     type: true,
+        //     avatar: true,
+        //     fullName: true,
+        //   },
+        // },
         messages: {
           skip,
           take: limit,
           orderBy: { createdAt: "asc" },
-          include: {
-            sender: {
-              select: {
-                id: true,
-                type: true,
-                avatar: true,
-                fullName: true,
-              },
-            },
-          },
+          // include: {
+          //   sender: {
+          //     select: {
+          //       id: true,
+          //       type: true,
+          //       avatar: true,
+          //       fullName: true,
+          //     },
+          //   },
+          // },
         },
       },
     });
@@ -158,7 +311,7 @@ export const sendMessage = async (request, reply) => {
         },
       },
     });
-    
+
     request.server.io.to(chatRoomId).emit("new_message", message);
 
     return reply.send({
