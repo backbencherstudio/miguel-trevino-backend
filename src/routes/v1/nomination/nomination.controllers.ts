@@ -43,7 +43,6 @@ export const createNomination = async (request, reply) => {
     const prisma = request.server.prisma;
     const admin = request.user?.type;
     const userIde = admin === "admin" ? userId : request.user?.id;
- 
 
     if (admin === "admin" && !userId) {
       return reply.status(400).send({
@@ -57,7 +56,6 @@ export const createNomination = async (request, reply) => {
       select: { id: true },
     });
 
-    
     if (!targetUser) {
       return reply.status(400).send({
         success: false,
@@ -250,12 +248,31 @@ export const getMyNominations = async (request, reply) => {
       orderBy: {
         id: "desc",
       },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            avatar: true,
+            type: true,
+          },
+        },
+      },
     });
 
     const formattedNominations = nominations.map((nomination) => ({
       ...nomination,
       scheduleFile: nomination.scheduleFile
         ? getImageUrl(`/uploads/${nomination.scheduleFile}`)
+        : null,
+      user: nomination.user
+        ? {
+            ...nomination.user,
+            avatar: nomination.user.avatar
+              ? getImageUrl(`/uploads/${nomination.user.avatar}`)
+              : null,
+          }
         : null,
     }));
 

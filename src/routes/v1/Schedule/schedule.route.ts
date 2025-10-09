@@ -6,7 +6,7 @@ import {
   getAllSchedules,
   getMySchedules,
   updateSchedule,
-  getMyNotifications,
+  uploadSchedule,
 } from "./schedule.controllers";
 
 const scheduleRoutes = (fastify: FastifyInstance) => {
@@ -15,7 +15,7 @@ const scheduleRoutes = (fastify: FastifyInstance) => {
     {
       preHandler: [verifyUser("admin"), upload.single("scheduleFile")],
     },
-    getMyNotifications
+    uploadSchedule
   );
 
   fastify.get(

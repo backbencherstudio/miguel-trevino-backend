@@ -128,7 +128,6 @@ export const getAllChatRooms = async (request, reply) => {
   }
 };
 
-
 export const getUserChatRoom = async (request, reply) => {
   try {
     const prisma = request.server.prisma;
@@ -198,8 +197,6 @@ export const getUserChatRoom = async (request, reply) => {
   }
 };
 
-
-
 export const getChatformRoom = async (request, reply) => {
   try {
     const prisma = request.server.prisma;
@@ -220,28 +217,29 @@ export const getChatformRoom = async (request, reply) => {
     const chatRoom = await prisma.chatRoom.findUnique({
       where: { id: roomId },
       include: {
-        // user: {
-        //   select: {
-        //     id: true,
-        //     type: true,
-        //     avatar: true,
-        //     fullName: true,
-        //   },
-        // },
+        user: {
+          select: {
+            id: true,
+            type: true,
+            avatar: true,
+            fullName: true,
+            email: true,
+          },
+        },
         messages: {
           skip,
           take: limit,
           orderBy: { createdAt: "asc" },
-          // include: {
-          //   sender: {
-          //     select: {
-          //       id: true,
-          //       type: true,
-          //       avatar: true,
-          //       fullName: true,
-          //     },
-          //   },
-          // },
+          include: {
+            sender: {
+              select: {
+                id: true,
+                type: true,
+                avatar: true,
+                fullName: true,
+              },
+            },
+          },
         },
       },
     });
@@ -275,53 +273,85 @@ export const getChatformRoom = async (request, reply) => {
 export const sendMessage = async (request, reply) => {
   try {
     const prisma = request.server.prisma;
+    const io = request.server.io;
     const { chatRoomId, content } = request.body;
     const senderId = request.user.id;
     const senderType = request.user.type;
 
-    const missingField = ["chatRoomId", "content"].find(
-      (field) => !request.body[field]
-    );
-
-    if (missingField) {
+    if (!chatRoomId || !content) {
       return reply.status(400).send({
         success: false,
-        message: `${missingField} is required!`,
+        message: "chatRoomId and content are required",
       });
     }
 
     const room = await prisma.chatRoom.findUnique({
       where: { id: chatRoomId },
+      include: { user: { select: { id: true, fullName: true, email: true } } },
     });
+
     if (!room) {
-      return reply
-        .status(404)
-        .send({ success: false, message: "Chat room not found" });
+      return reply.status(404).send({
+        success: false,
+        message: "Chat room not found",
+      });
     }
 
+    // Restrict non-admin users to their own room
     if (senderType !== "admin" && room.userId !== senderId) {
-      return reply.status(403).send({ success: false, message: "Not allowed" });
+      return reply.status(403).send({
+        success: false,
+        message: "You are not allowed to send messages in this room",
+      });
     }
 
+    // Save message
     const message = await prisma.messages.create({
       data: { chatRoomId, senderId, content },
       include: {
         sender: {
-          select: { id: true, fullName: true, type: true, avatar: true },
+          select: {
+            id: true,
+            fullName: true,
+            type: true,
+            avatar: true,
+          },
         },
       },
     });
 
-    request.server.io.to(chatRoomId).emit("new_message", message);
 
-    return reply.send({
+    io.to(chatRoomId).emit("new_message", {
+      ...message,
+      chatRoomId,
+      createdAt: message.createdAt,
+      sender: message.sender,
+    });
+
+
+    // io.emit("update_room_last_message", {
+    //   roomId: chatRoomId,
+    //   lastMessage: {
+    //     id: message.id,
+    //     content: message.content,
+    //     createdAt: message.createdAt,
+    //     sender: message.sender,
+    //   },
+    // });
+
+    return reply.status(200).send({
       success: true,
-      message: "Message sent",
-      data: message,
+      message: "Message sent successfully",
+      data: {
+        id: message.id,
+        chatRoomId,
+        content: message.content,
+        createdAt: message.createdAt,
+        sender: message.sender,
+      },
     });
   } catch (error) {
     request.log.error(error);
-
     return reply.status(500).send({
       success: false,
       message: "Internal Server Error",
@@ -329,3 +359,4 @@ export const sendMessage = async (request, reply) => {
     });
   }
 };
+

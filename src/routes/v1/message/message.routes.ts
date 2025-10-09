@@ -31,6 +31,15 @@ const messagenRoutes = (fastify: FastifyInstance) => {
 
 export default messagenRoutes;
 
+
+
+
+
+
+
+
+
+
 // import { FastifyInstance } from "fastify";
 
 // import { upload } from "../../../config/storage.config";
