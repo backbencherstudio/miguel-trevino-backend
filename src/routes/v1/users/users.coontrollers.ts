@@ -8,26 +8,32 @@ export const getAllusers = async (request, reply) => {
     const prisma = request.server.prisma;
 
     const query = request.query as any;
+    
+    // Parse boolean parameters flexibly
     const parseStrictBoolean = (val: any) => {
+      if (val === undefined || val === null) return undefined;
       if (typeof val === "boolean") return val;
       const str = typeof val === "string" ? val.toLowerCase() : undefined;
       if (str === "true") return true;
       if (str === "false") return false;
       return undefined;
     };
-    const active = parseStrictBoolean(query.active);
-    if (active === undefined) {
-      return reply.status(400).send({
-        success: false,
-        message:
-          "Query parameter 'active' is required and must be 'true' or 'false'",
-      });
-    }
-    const page = parseInt(request.query.page as string) || 1;
-    const limit = parseInt(request.query.limit as string) || 10;
-    const skip = (page - 1) * limit;
 
-    const where: any = { type: "user", active };
+    const active = parseStrictBoolean(query.active);
+    const page = parseInt(request.query.page as string);
+    const limit = parseInt(request.query.limit as string);
+    
+    // Build where clause flexibly
+    const where: any = { type: "user" };
+    if (active !== undefined) {
+      where.active = active;
+    }
+
+    // Check if pagination is requested
+    const usePagination = !isNaN(page) && !isNaN(limit) && page > 0 && limit > 0;
+    
+    const skip = usePagination ? (page - 1) * limit : undefined;
+    const take = usePagination ? limit : undefined;
 
     const totalItems = await prisma.user.count({ where });
 
@@ -35,11 +41,10 @@ export const getAllusers = async (request, reply) => {
       where,
       orderBy: { createdAt: "desc" },
       skip,
-      take: limit,
+      take,
     });
 
-    // delete users.password;
-
+    // Remove password and format avatar URL
     const formattedUsers = users.map((user) => {
       const { password, ...rest } = user;
       return {
@@ -48,21 +53,30 @@ export const getAllusers = async (request, reply) => {
       };
     });
 
-    const totalPages = Math.ceil(totalItems / limit);
-
-    return reply.status(200).send({
+    // Prepare response
+    const response: any = {
       success: true,
       message: "Users retrieved successfully",
       data: formattedUsers,
-      pagination: {
+    };
+
+    // Add pagination info only if pagination was used
+    if (usePagination) {
+      const totalPages = Math.ceil(totalItems / limit);
+      response.pagination = {
         totalItems,
         totalPages,
         currentPage: page,
         itemsPerPage: limit,
         hasNextPage: page < totalPages,
         hasPrevPage: page > 1,
-      },
-    });
+      };
+    } else {
+      // If no pagination, include total count in the main response
+      response.totalItems = totalItems;
+    }
+
+    return reply.status(200).send(response);
   } catch (error) {
     request.log.error(error);
     return reply.code(500).send({
@@ -71,7 +85,6 @@ export const getAllusers = async (request, reply) => {
     });
   }
 };
-
 export const deactiveToActiveUser = async (request, reply) => {
   try {
     const prisma = request.server.prisma;
@@ -95,7 +108,93 @@ export const deactiveToActiveUser = async (request, reply) => {
         message: "User not found",
       });
     }
-    
+
+    return reply.code(500).send({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};
+
+export const searchUsers = async (request, reply) => {
+  try {
+    const prisma = request.server.prisma;
+    const query = (request.query.query || "").trim();
+    console.log("Query:", query);
+
+    const page = parseInt(request.query.page as string) || 1;
+    const limit = parseInt(request.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
+
+    const activeParam = request.query.active;
+    const active =
+      activeParam === "true"
+        ? true
+        : activeParam === "false"
+        ? false
+        : undefined;
+
+    if (!query) {
+      return reply.status(200).send({
+        success: true,
+        message: "Users search results retrieved successfully",
+        data: [],
+        pagination: {
+          totalItems: 0,
+          totalPages: 0,
+          currentPage: page,
+          itemsPerPage: limit,
+          hasNextPage: false,
+          hasPrevPage: false,
+        },
+      });
+    }
+
+    const where: any = {
+      type: "user",
+      OR: [
+        { fullName: { contains: query, mode: "insensitive" } },
+        { email: { contains: query, mode: "insensitive" } },
+        { companyName: { contains: query, mode: "insensitive" } },
+      ],
+    };
+
+    if (active !== undefined) where.active = active;
+
+    const totalItems = await prisma.user.count({ where });
+
+    const users = await prisma.user.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+    });
+
+    const formattedUsers = users.map((user) => {
+      const { password, ...rest } = user;
+      return {
+        ...rest,
+        avatar: user.avatar ? getImageUrl(`/uploads/${user.avatar}`) : null,
+      };
+    });
+
+    const totalPages = Math.ceil(totalItems / limit);
+
+    return reply.status(200).send({
+      success: true,
+      message: "Users search results retrieved successfully",
+      data: formattedUsers,
+      pagination: {
+        totalItems,
+        totalPages,
+        currentPage: page,
+        itemsPerPage: limit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    });
+  } catch (error) {
+    request.log.error(error);
     return reply.code(500).send({
       success: false,
       message: "Internal Server Error",

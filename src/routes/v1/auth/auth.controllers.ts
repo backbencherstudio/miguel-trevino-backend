@@ -430,7 +430,7 @@ export const adminLogin = async (request, reply) => {
     if (!user || user.type === "user") {
       return reply.status(404).send({
         success: false,
-        message: "Credential not match!", 
+        message: "Credential not match!",
       });
     }
 
@@ -471,7 +471,6 @@ export const adminLogin = async (request, reply) => {
     });
   }
 };
-
 
 export const forgotPasswordSendOtp = async (request, reply) => {
   try {
@@ -1079,6 +1078,40 @@ export const updateUser = async (request, reply) => {
     }
 
     return reply.code(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+export const getUserProfile = async (request, reply) => {
+  try {
+    const prisma = request.server.prisma;
+    const userId = request.user?.id;
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      return reply.status(404).send({
+        success: false,
+        message: "User not found",
+      });
+    }
+    const { password, ...userData } = user;
+
+    return reply.status(200).send({
+      success: true,
+      message: "User profile fetched successfully",
+      data: {
+        ...userData,
+        avatar: user.avatar ? getImageUrl(`/uploads/${user.avatar}`) : null,
+      },
+    });
+  } catch (error) {
+    request.log.error(error);
+    return reply.status(500).send({
       success: false,
       message: "Internal Server Error",
       error: error instanceof Error ? error.message : "Unknown error",

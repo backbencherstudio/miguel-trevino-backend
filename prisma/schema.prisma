@@ -57,6 +57,9 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([fullName])
+  @@index([email])
+  @@index([companyName])
   @@map("users")
 }
 
@@ -133,12 +136,14 @@ enum NominationStatus {
 }
 
 model schedule {
-  id            String @id @default(cuid())
+  id            String  @id @default(cuid())
   assignTo      String
-  user          User   @relation(fields: [assignTo], references: [id], onDelete: Cascade)
+  user          User    @relation(fields: [assignTo], references: [id], onDelete: Cascade)
   commodityType String //CommodityTypes
-  transportMode TransportModes
+  transportMode String //TransportModes
   scheduleFile  String
+  assetGroup    String
+  seduleMonth   String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

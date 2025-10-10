@@ -15,6 +15,7 @@ import {
   email2FARecentOtp,
   parmitions,
   updateUser,
+  getUserProfile,
 } from "./auth.controllers";
 import { upload } from "../../../config/storage.config";
 import { verifyUser } from "../../../middleware/auth.middleware";
@@ -57,6 +58,14 @@ const authRoutes = (fastify: FastifyInstance) => {
       preHandler: [verifyUser("user", "admin"), upload.single("avatar")],
     },
     updateUser
+  );
+
+  fastify.get(
+    "/me",
+    {
+      preHandler: [verifyUser("user", "admin")],
+    },
+    getUserProfile
   );
 };
 

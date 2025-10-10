@@ -26,6 +26,13 @@ app.register(fastifyStatic, {
   prefix: "/uploads/",
 });
 
+// serve simple test assets
+app.register(fastifyStatic, {
+  root: path.join(__dirname, "__test__"),
+  prefix: "/test/",
+  decorateReply: false,
+});
+
 app.setNotFoundHandler((request, reply) => {
   reply.status(400).send({
     statusCode: 400,

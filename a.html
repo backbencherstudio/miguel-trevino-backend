@@ -1,0 +1,1530 @@
+<!-- import 'dotenv/config'
+import app from "./app"
+
+async function start() {
+  try {
+    const port = Number(process.env.PORT) || 4002
+    await app.listen({ port, host: "0.0.0.0" })
+    console.log(`Server running at http://localhost:${port}`)
+  } catch (err) {
+    app.log.error(err)
+    process.exit(1)
+  }
+}
+
+start()
+-------------------------
+import path from "path";
+import Fastify from "fastify";
+import AutoLoad from "@fastify/autoload";
+import cors from "@fastify/cors";
+import routesV1 from "./src/routes/v1";
+import fastifyStatic from "@fastify/static";
+import { registerMultipart } from "./src/config/storage.config";
+
+const app = Fastify({ logger: true });
+
+app.register(cors, {
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+});
+
+registerMultipart(app);
+
+app.register(AutoLoad, {
+  dir: path.join(__dirname, "src/plugins"),
+});
+
+app.register(routesV1, { prefix: "/api/v1" });
+
+app.register(fastifyStatic, {
+  root: path.join(__dirname, "uploads"),
+  prefix: "/uploads/",
+});
+
+app.setNotFoundHandler((request, reply) => {
+  reply.status(400).send({
+    statusCode: 400,
+    error: "Bad Request",
+    message: "Route not found",
+  });
+});
+
+
+app.setErrorHandler((error, request, reply) => {
+  request.log.error(error);
+  reply.status(500).send({
+    statusCode: 500,
+    error: error.message,
+    message: "Internal Server Error",
+  });
+});
+
+export default app;
+
+-----------------------------
+
+  fastify.get(
+    "/me",
+    {
+      preHandler: [verifyUser("user", "admin")],
+    },
+    getUserProfile
+  );
+
+  ---------------------------------
+  
+export const getUserProfile = async (request, reply) => {
+  try {
+    const prisma = request.server.prisma;
+    const userId = request.user?.id;
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      return reply.status(404).send({
+        success: false,
+        message: "User not found",
+      });
+    }
+    const { password, ...userData } = user;
+
+    return reply.status(200).send({
+      success: true,
+      message: "User profile fetched successfully",
+      data: {
+        ...userData,
+        avatar: user.avatar ? getImageUrl(`/uploads/${user.avatar}`) : null,
+      },
+    });
+  } catch (error) {
+    request.log.error(error);
+    return reply.status(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+------------------------------------------
+message-------------------
+
+import { FastifyInstance } from "fastify";
+
+import { upload } from "../../../config/storage.config";
+import { verifyUser } from "../../../middleware/auth.middleware";
+import {
+  getAllChatRooms,
+  getChatformRoom,
+  sendMessage,
+  getUserChatRoom
+} from "./message.controllers";
+
+const messagenRoutes = (fastify: FastifyInstance) => {
+  
+  fastify.get("/rooms", { preHandler: verifyUser("admin") }, getAllChatRooms);
+  
+  //ইউজারের ক্ষেত্রে একটা হার্ড কোডেড নেইম আর ইমেইজ ব্যবহার করতে হবে
+  fastify.get("/my-room", { preHandler: verifyUser("user") }, getUserChatRoom);
+
+  fastify.get(
+    "/rooms/:roomId",
+    { preHandler: verifyUser("admin", "user") },
+    getChatformRoom
+  );
+
+  fastify.post(
+    "/send-message",
+    { preHandler: verifyUser("admin", "user") },
+    sendMessage
+  );
+};
+
+export default messagenRoutes;
+
+-----------------------------------------------------------------------------
+
+// export const getAllChatRooms = async (request, reply) => {
+//   try {
+//     const prisma = request.server.prisma;
+
+import { getImageUrl } from "../../../utils/baseurl";
+
+//     const page = parseInt(request.query.page) || 1;
+//     const limit = parseInt(request.query.limit) || 10;
+//     const skip = (page - 1) * limit;
+
+//     const totalItems = await prisma.chatRoom.count();
+
+//     const rooms = await prisma.chatRoom.findMany({
+//       skip,
+//       take: limit,
+//       orderBy: { updatedAt: "desc" },
+//       include: {
+//         user: {
+//           select: { id: true, fullName: true, email: true, avatar: true },
+//         },
+//         messages: {
+//           orderBy: { createdAt: "desc" },
+//           take: 1,
+//           include: {
+//             sender: {
+//               select: { id: true, fullName: true, type: true, avatar: true },
+//             },
+//           },
+//         },
+//       },
+//     });
+
+//     return reply.send({
+//       success: true,
+//       message: "Chat rooms retrieved successfully",
+//       data: rooms,
+//       pagination: {
+//         totalItems,
+//         currentPage: page,
+//         itemsPerPage: limit,
+//         totalPages: Math.ceil(totalItems / limit),
+//       },
+//     });
+//   } catch (err) {
+//     request.log.error(err);
+//     return reply
+//       .status(500)
+//       .send({ success: false, message: "Internal Server Error" });
+//   }
+// };
+
+export const getAllChatRooms = async (request, reply) => {
+  try {
+    const prisma = request.server.prisma;
+
+    const page = parseInt(request.query.page) || 1;
+    const limit = parseInt(request.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const totalItems = await prisma.chatRoom.count();
+
+    const chatRooms = await prisma.chatRoom.findMany({
+      skip,
+      take: limit,
+      orderBy: { updatedAt: "desc" },
+      include: {
+        user: {
+          select: { id: true, fullName: true, email: true, avatar: true },
+        },
+        messages: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          include: {
+            sender: {
+              select: {
+                id: true,
+                fullName: true,
+                type: true,
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            messages: {
+              where: { read: false },
+            },
+          },
+        },
+      },
+    });
+
+    const rooms = chatRooms.map((room) => ({
+      id: room.id,
+      createdAt: room.createdAt,
+      updatedAt: room.updatedAt,
+      user: {
+        ...room.user,
+        avatar: room.user.avatar ? getImageUrl(room.user.avatar) : null,
+      },
+      lastMessage: room.messages[0]
+        ? {
+            id: room.messages[0].id,
+            content: room.messages[0].content,
+            createdAt: room.messages[0].createdAt,
+            sender: room.messages[0].sender,
+          }
+        : null,
+      unreadCount: room._count?.messages || 0,
+    }));
+
+    return reply.send({
+      success: true,
+      message: "Chat rooms retrieved successfully",
+      data: { rooms },
+      pagination: {
+        totalItems,
+        currentPage: page,
+        itemsPerPage: limit,
+        totalPages: Math.ceil(totalItems / limit),
+      },
+    });
+  } catch (err) {
+    request.log.error(err);
+    return reply
+      .status(500)
+      .send({ success: false, message: "Internal Server Error" });
+  }
+};
+
+export const getUserChatRoom = async (request, reply) => {
+  try {
+    const prisma = request.server.prisma;
+    const { id } = request.user;
+
+    const chatRoom = await prisma.chatRoom.findUnique({
+      where: { userId: id },
+      include: {
+        user: {
+          select: { id: true, fullName: true, email: true, avatar: true },
+        },
+        messages: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          include: {
+            sender: {
+              select: { id: true, fullName: true, type: true},
+            },
+          },
+        },
+        _count: {
+          select: { messages: { where: { read: false } } },
+        },
+      },
+    });
+
+    if (!chatRoom) {
+      return reply.status(404).send({
+        success: false,
+        message: "Chat room not found",
+      });
+    }
+
+    const room = {
+      id: chatRoom.id,
+      createdAt: chatRoom.createdAt,
+      updatedAt: chatRoom.updatedAt,
+      user: {
+        ...chatRoom.user,
+        avatar: chatRoom.user.avatar ? getImageUrl(chatRoom.user.avatar) : null,
+      },
+      lastMessage: chatRoom.messages[0]
+        ? {
+            id: chatRoom.messages[0].id,
+            content: chatRoom.messages[0].content,
+            createdAt: chatRoom.messages[0].createdAt,
+            sender: {
+              ...chatRoom.messages[0].sender,
+            },
+          }
+        : null,
+      unreadCount: chatRoom._count?.messages || 0,
+    };
+
+    return reply.status(200).send({
+      success: true,
+      message: "Chat room retrieved successfully",
+      data: { room },
+    });
+  } catch (err) {
+    request.log.error(err);
+    return reply.status(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: err.message,
+    });
+  }
+};
+
+export const getChatformRoom = async (request, reply) => {
+  try {
+    const prisma = request.server.prisma;
+    const { roomId } = request.params;
+
+    // Pagination params
+    const page = parseInt(request.query.page, 10) || 1;
+    const limit = parseInt(request.query.limit, 10) || 50;
+    const skip = (page - 1) * limit;
+
+    if (!roomId) {
+      return reply.status(400).send({
+        success: false,
+        message: "Room ID is required",
+      });
+    }
+
+    const chatRoom = await prisma.chatRoom.findUnique({
+      where: { id: roomId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            type: true,
+            avatar: true,
+            fullName: true,
+            email: true,
+          },
+        },
+        messages: {
+          skip,
+          take: limit,
+          orderBy: { createdAt: "asc" },
+          include: {
+            sender: {
+              select: {
+                id: true,
+                type: true,
+                avatar: true,
+                fullName: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!chatRoom) {
+      return reply.status(404).send({
+        success: false,
+        message: "Chat room not found",
+      });
+    }
+
+    return reply.status(200).send({
+      success: true,
+      message: "Messages retrieved successfully",
+      data: chatRoom,
+      pagination: {
+        currentPage: page,
+        itemsPerPage: limit,
+      },
+    });
+  } catch (error) {
+    request.log.error(error);
+    return reply.status(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+export const sendMessage = async (request, reply) => {
+  try {
+    const prisma = request.server.prisma;
+    const io = request.server.io;
+    const { chatRoomId, content } = request.body;
+    const senderId = request.user.id;
+    const senderType = request.user.type;
+
+    if (!chatRoomId || !content) {
+      return reply.status(400).send({
+        success: false,
+        message: "chatRoomId and content are required",
+      });
+    }
+
+    const room = await prisma.chatRoom.findUnique({
+      where: { id: chatRoomId },
+      include: { user: { select: { id: true, fullName: true, email: true } } },
+    });
+
+    if (!room) {
+      return reply.status(404).send({
+        success: false,
+        message: "Chat room not found",
+      });
+    }
+
+    // Restrict non-admin users to their own room
+    if (senderType !== "admin" && room.userId !== senderId) {
+      return reply.status(403).send({
+        success: false,
+        message: "You are not allowed to send messages in this room",
+      });
+    }
+
+    // Save message
+    const message = await prisma.messages.create({
+      data: { chatRoomId, senderId, content },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            fullName: true,
+            type: true,
+            avatar: true,
+          },
+        },
+      },
+    });
+
+
+    io.to(chatRoomId).emit("new_message", {
+      ...message,
+      chatRoomId,
+      createdAt: message.createdAt,
+      sender: message.sender,
+    });
+
+
+    // io.emit("update_room_last_message", {
+    //   roomId: chatRoomId,
+    //   lastMessage: {
+    //     id: message.id,
+    //     content: message.content,
+    //     createdAt: message.createdAt,
+    //     sender: message.sender,
+    //   },
+    // });
+
+    return reply.status(200).send({
+      success: true,
+      message: "Message sent successfully",
+      data: {
+        id: message.id,
+        chatRoomId,
+        content: message.content,
+        createdAt: message.createdAt,
+        sender: message.sender,
+      },
+    });
+  } catch (error) {
+    request.log.error(error);
+    return reply.status(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+--------------------------------------------------------------------------------------
+
+///src/plugins/socket.ts
+import fp from "fastify-plugin";
+import { Server } from "socket.io";
+
+export default fp(async (fastify) => {
+  const io = new Server(fastify.server, {
+    cors: { 
+      origin: ["http://localhost:5173", "http://localhost:3000"],
+      methods: ["GET", "POST"],
+      credentials: true
+    },
+  });
+
+  io.on("connection", (socket) => {
+    fastify.log.info(`Socket connected: ${socket.id}`);
+
+    socket.on("join_room", ({ roomId, userType }) => {
+      socket.join(roomId);
+
+      if (userType === "admin") {
+        fastify.log.info(`Admin joined room: ${roomId}`);
+      } else {
+        fastify.log.info(`User joined their room: ${roomId}`);
+      }
+    });
+
+    // --- TYPING EVENTS ---
+    socket.on("typing", ({ roomId, user }) => { 
+      socket.to(roomId).emit("user_typing", user);
+    });
+
+    socket.on("stop_typing", ({ roomId, user }) => {
+      socket.to(roomId).emit("user_stop_typing", user);
+    });
+
+    socket.on("disconnect", () => {
+      fastify.log.info(`Socket disconnected: ${socket.id}`);
+    });
+  });
+
+  fastify.decorate("io", io);
+});
+
+declare module "fastify" {
+  interface FastifyInstance {
+    io: Server;
+  }
+}
+ -->
+
+
+ <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Real-time Chat</title>
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --primary: #6366f1;
+      --primary-dark: #4f46e5;
+      --bg-dark: #0f172a;
+      --bg-darker: #020617;
+      --bg-card: #1e293b;
+      --bg-hover: #334155;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --border: #334155;
+      --success: #22c55e;
+      --danger: #ef4444;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, var(--bg-darker) 0%, var(--bg-dark) 100%);
+      color: var(--text-primary);
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .app-container {
+      display: flex;
+      height: 100vh;
+      max-width: 1800px;
+      margin: 0 auto;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 360px;
+      background: var(--bg-card);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.3s;
+    }
+
+    .sidebar-header {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-header h2 {
+      font-size: 24px;
+      margin-bottom: 16px;
+      background: linear-gradient(135deg, var(--primary) 0%, #a855f7 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .connection-form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-group label {
+      font-size: 12px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    input, textarea {
+      background: var(--bg-dark);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: var(--text-primary);
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+
+    input:focus, textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 60px;
+      font-family: monospace;
+      font-size: 12px;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 8px;
+    }
+
+    button {
+      flex: 1;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 14px;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--primary-dark);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: var(--border);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-top: 12px;
+    }
+
+    .status-badge.connected {
+      background: rgba(34, 197, 94, 0.1);
+      color: var(--success);
+    }
+
+    .status-badge.disconnected {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--danger);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    .connected .status-dot {
+      background: var(--success);
+    }
+
+    .disconnected .status-dot {
+      background: var(--danger);
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Rooms List */
+    .rooms-section {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .rooms-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .rooms-header h3 {
+      font-size: 14px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .refresh-btn {
+      padding: 6px 12px;
+      font-size: 12px;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+
+    .rooms-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+
+    .room-item {
+      padding: 14px;
+      margin-bottom: 8px;
+      background: var(--bg-dark);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .room-item:hover {
+      background: var(--bg-hover);
+      transform: translateX(4px);
+    }
+
+    .room-item.active {
+      background: rgba(99, 102, 241, 0.1);
+      border-color: var(--primary);
+    }
+
+    .room-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      margin-bottom: 8px;
+    }
+
+    .room-user {
+      flex: 1;
+    }
+
+    .room-name {
+      font-weight: 600;
+      font-size: 15px;
+      margin-bottom: 2px;
+    }
+
+    .room-email {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .unread-badge {
+      background: var(--primary);
+      color: white;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .room-last-message {
+      font-size: 13px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Chat Area */
+    .chat-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-darker);
+    }
+
+    .chat-header {
+      padding: 20px 24px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .chat-info h2 {
+      font-size: 20px;
+      margin-bottom: 4px;
+    }
+
+    .chat-info p {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .message {
+      display: flex;
+      gap: 12px;
+      max-width: 70%;
+      animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .message.sent {
+      align-self: flex-end;
+      flex-direction: row-reverse;
+    }
+
+    .message-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary) 0%, #a855f7 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .message-content {
+      flex: 1;
+    }
+
+    .message-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .message-sender {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .message-time {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .message-bubble {
+      background: var(--bg-card);
+      padding: 12px 16px;
+      border-radius: 12px;
+      line-height: 1.5;
+      word-wrap: break-word;
+    }
+
+    .message.sent .message-bubble {
+      background: var(--primary);
+      color: white;
+    }
+
+    .typing-indicator {
+      padding: 0 24px 8px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      font-style: italic;
+      height: 24px;
+    }
+
+    /* Chat Input */
+    .chat-input {
+      padding: 20px 24px;
+      background: var(--bg-card);
+      border-top: 1px solid var(--border);
+    }
+
+    .input-wrapper {
+      display: flex;
+      gap: 12px;
+      align-items: flex-end;
+    }
+
+    .message-input {
+      flex: 1;
+      min-height: 44px;
+      max-height: 120px;
+      padding: 12px 16px;
+      resize: none;
+    }
+
+    .send-button {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      padding: 0;
+    }
+
+    .send-button:hover:not(:disabled) {
+      background: var(--primary-dark);
+    }
+
+    .empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-secondary);
+      gap: 12px;
+    }
+
+    .empty-icon {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: var(--bg-card);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+    }
+
+    .logs {
+      padding: 12px 20px;
+      border-top: 1px solid var(--border);
+      max-height: 150px;
+      overflow-y: auto;
+    }
+
+    .logs h4 {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+
+    .log-entry {
+      font-size: 11px;
+      font-family: monospace;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--bg-hover);
+    }
+
+    @media (max-width: 768px) {
+      .sidebar {
+        position: absolute;
+        z-index: 100;
+        height: 100%;
+        transform: translateX(-100%);
+      }
+
+      .sidebar.mobile-open {
+        transform: translateX(0);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <h2>💬 Chat Client</h2>
+        
+        <form class="connection-form" id="connectionForm">
+          <div class="form-group">
+            <label>API Base URL</label>
+            <input type="text" id="apiBase" value="http://localhost:4000/api/v1" placeholder="http://localhost:4000/api/v1">
+          </div>
+
+          <div class="form-group">
+            <label>Socket URL</label>
+            <input type="text" id="socketUrl" value="http://localhost:4000" placeholder="http://localhost:4000">
+          </div>
+
+          <div class="form-group">
+            <label>JWT Token</label>
+            <textarea id="jwtToken" placeholder="Paste your JWT token here"></textarea>
+          </div>
+
+          <div class="button-group">
+            <button type="button" class="btn-primary" id="connectBtn">Connect</button>
+            <button type="button" class="btn-secondary" id="disconnectBtn" disabled>Disconnect</button>
+          </div>
+        </form>
+
+        <div class="status-badge disconnected" id="statusBadge">
+          <span class="status-dot"></span>
+          <span id="statusText">Disconnected</span>
+        </div>
+      </div>
+
+      <div class="rooms-section">
+        <div class="rooms-header">
+          <h3 id="roomsTitle">Rooms</h3>
+          <button class="refresh-btn" id="refreshBtn">🔄 Refresh</button>
+        </div>
+        <div class="rooms-list" id="roomsList">
+          <div class="empty-state">
+            <div class="empty-icon">💬</div>
+            <p>Connect to view rooms</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="logs">
+        <h4>Activity Logs</h4>
+        <div id="logContainer"></div>
+      </div>
+    </div>
+
+    <!-- Chat Area -->
+    <div class="chat-container">
+      <div class="chat-header">
+        <div class="chat-info">
+          <h2 id="chatTitle">Select a room to start chatting</h2>
+          <p id="chatSubtitle"></p>
+        </div>
+      </div>
+
+      <div class="chat-messages" id="messagesContainer">
+        <div class="empty-state">
+          <div class="empty-icon">💬</div>
+          <p>No messages yet</p>
+          <p style="font-size: 12px;">Start a conversation!</p>
+        </div>
+      </div>
+
+      <div class="typing-indicator" id="typingIndicator"></div>
+
+      <div class="chat-input">
+        <div class="input-wrapper">
+          <textarea 
+            class="message-input" 
+            id="messageInput" 
+            placeholder="Type your message..." 
+            rows="1"
+            disabled
+          ></textarea>
+          <button class="send-button" id="sendBtn" disabled>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      socket: null,
+      token: null,
+      userType: null,
+      currentRoom: null,
+      rooms: [],
+      isConnected: false,
+      isTyping: false,
+      typingTimeout: null
+    };
+
+    const elements = {
+      apiBase: document.getElementById('apiBase'),
+      socketUrl: document.getElementById('socketUrl'),
+      jwtToken: document.getElementById('jwtToken'),
+      connectBtn: document.getElementById('connectBtn'),
+      disconnectBtn: document.getElementById('disconnectBtn'),
+      statusBadge: document.getElementById('statusBadge'),
+      statusText: document.getElementById('statusText'),
+      roomsList: document.getElementById('roomsList'),
+      refreshBtn: document.getElementById('refreshBtn'),
+      messagesContainer: document.getElementById('messagesContainer'),
+      messageInput: document.getElementById('messageInput'),
+      sendBtn: document.getElementById('sendBtn'),
+      chatTitle: document.getElementById('chatTitle'),
+      chatSubtitle: document.getElementById('chatSubtitle'),
+      typingIndicator: document.getElementById('typingIndicator'),
+      logContainer: document.getElementById('logContainer')
+    };
+
+    // Logging
+    function log(message, type = 'info') {
+      const time = new Date().toLocaleTimeString();
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.textContent = `[${time}] ${message}`;
+      elements.logContainer.insertBefore(entry, elements.logContainer.firstChild);
+      
+      if (elements.logContainer.children.length > 50) {
+        elements.logContainer.removeChild(elements.logContainer.lastChild);
+      }
+    }
+
+    // API Helper
+    async function apiCall(endpoint, options = {}) {
+      const url = `${elements.apiBase.value}${endpoint}`;
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(state.token && { 'Authorization': `Bearer ${state.token}` })
+      };
+
+      try {
+        const response = await fetch(url, { ...options, headers });
+        const data = await response.json();
+        return { ok: response.ok, status: response.status, data };
+      } catch (error) {
+        log(`API Error: ${error.message}`, 'error');
+        return { ok: false, error: error.message };
+      }
+    }
+
+    // Connection
+    elements.connectBtn.addEventListener('click', async () => {
+      state.token = elements.jwtToken.value.trim();
+      
+      if (!state.token) {
+        alert('Please enter a JWT token');
+        return;
+      }
+
+      log('Attempting to connect...');
+
+      // Detect user type
+      const myRoomResult = await apiCall('/messages/my-room');
+      
+      if (myRoomResult.ok) {
+        state.userType = 'user';
+        state.currentRoom = myRoomResult.data.data.room;
+        log('Connected as USER');
+        initSocket();
+        renderRooms([state.currentRoom]);
+        selectRoom(state.currentRoom);
+      } else {
+        const roomsResult = await apiCall('/messages/rooms');
+        if (roomsResult.ok) {
+          state.userType = 'admin';
+          state.rooms = roomsResult.data.data.rooms;
+          log('Connected as ADMIN');
+          initSocket();
+          renderRooms(state.rooms);
+        } else {
+          alert('Failed to connect. Check your token and API URL.');
+          log('Connection failed', 'error');
+        }
+      }
+    });
+
+    elements.disconnectBtn.addEventListener('click', () => {
+      if (state.socket) {
+        state.socket.disconnect();
+        state.socket = null;
+      }
+      updateConnectionStatus(false);
+      elements.messageInput.disabled = true;
+      elements.sendBtn.disabled = true;
+      log('Disconnected');
+    });
+
+    function updateConnectionStatus(connected) {
+      state.isConnected = connected;
+      elements.statusBadge.className = `status-badge ${connected ? 'connected' : 'disconnected'}`;
+      elements.statusText.textContent = connected ? 'Connected' : 'Disconnected';
+      elements.connectBtn.disabled = connected;
+      elements.disconnectBtn.disabled = !connected;
+    }
+
+    // Socket.IO
+    function initSocket() {
+      const socketUrl = elements.socketUrl.value;
+      state.socket = io(socketUrl, {
+        auth: { token: state.token }
+      });
+
+      state.socket.on('connect', () => {
+        log('Socket connected');
+        updateConnectionStatus(true);
+        elements.messageInput.disabled = false;
+        elements.sendBtn.disabled = false;
+
+        if (state.currentRoom) {
+          joinRoom(state.currentRoom.id);
+        }
+      });
+
+      state.socket.on('disconnect', () => {
+        log('Socket disconnected');
+        updateConnectionStatus(false);
+      });
+
+      state.socket.on('new_message', (message) => {
+        log('New message received');
+        if (state.currentRoom && message.chatRoomId === state.currentRoom.id) {
+          appendMessage(message);
+        }
+        
+        if (state.userType === 'admin') {
+          refreshRooms();
+        }
+      });
+
+      state.socket.on('user_typing', (user) => {
+        elements.typingIndicator.textContent = `${user.fullName || 'Someone'} is typing...`;
+      });
+
+      state.socket.on('user_stop_typing', () => {
+        elements.typingIndicator.textContent = '';
+      });
+
+      state.socket.on('connect_error', (error) => {
+        log(`Socket error: ${error.message}`, 'error');
+      });
+    }
+
+    function joinRoom(roomId) {
+      if (state.socket && state.socket.connected) {
+        state.socket.emit('join_room', { roomId, userType: state.userType });
+        log(`Joined room: ${roomId}`);
+      }
+    }
+
+    // Rooms
+    function renderRooms(rooms) {
+      elements.roomsList.innerHTML = '';
+
+      if (!rooms || rooms.length === 0) {
+        elements.roomsList.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>No rooms available</p></div>';
+        return;
+      }
+
+      rooms.forEach(room => {
+        const roomEl = document.createElement('div');
+        roomEl.className = 'room-item';
+        roomEl.dataset.roomId = room.id;
+
+        const userName = room.user?.fullName || 'Unknown User';
+        const userEmail = room.user?.email || '';
+        const lastMsg = room.lastMessage?.content || 'No messages yet';
+        const unread = room.unreadCount || 0;
+
+        roomEl.innerHTML = `
+          <div class="room-header">
+            <div class="room-user">
+              <div class="room-name">${userName}</div>
+              <div class="room-email">${userEmail}</div>
+            </div>
+            ${unread > 0 ? `<span class="unread-badge">${unread}</span>` : ''}
+          </div>
+          <div class="room-last-message">${lastMsg}</div>
+        `;
+
+        roomEl.addEventListener('click', () => selectRoom(room));
+        elements.roomsList.appendChild(roomEl);
+      });
+    }
+
+    async function selectRoom(room) {
+      state.currentRoom = room;
+      
+      document.querySelectorAll('.room-item').forEach(el => {
+        el.classList.toggle('active', el.dataset.roomId === room.id);
+      });
+
+      elements.chatTitle.textContent = room.user?.fullName || 'Chat Room';
+      elements.chatSubtitle.textContent = room.user?.email || '';
+
+      if (state.socket && state.socket.connected) {
+        joinRoom(room.id);
+      }
+
+      await loadMessages(room.id);
+    }
+
+    async function loadMessages(roomId) {
+      elements.messagesContainer.innerHTML = '<div class="empty-state"><p>Loading messages...</p></div>';
+
+      const result = await apiCall(`/messages/rooms/${roomId}?page=1&limit=100`);
+
+      if (!result.ok) {
+        elements.messagesContainer.innerHTML = '<div class="empty-state"><div class="empty-icon">❌</div><p>Failed to load messages</p></div>';
+        return;
+      }
+
+      const messages = result.data.data.messages || [];
+      elements.messagesContainer.innerHTML = '';
+
+      if (messages.length === 0) {
+        elements.messagesContainer.innerHTML = '<div class="empty-state"><div class="empty-icon">💬</div><p>No messages yet</p><p style="font-size: 12px;">Start a conversation!</p></div>';
+        return;
+      }
+
+      messages.forEach(msg => appendMessage(msg, false));
+      elements.messagesContainer.scrollTop = elements.messagesContainer.scrollHeight;
+    }
+
+    function appendMessage(message, scroll = true) {
+      const isMe = message.sender?.type === state.userType;
+      const senderName = message.sender?.fullName || 'Unknown';
+      const initial = senderName.charAt(0).toUpperCase();
+      const time = new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      const messageEl = document.createElement('div');
+      messageEl.className = `message ${isMe ? 'sent' : ''}`;
+
+      messageEl.innerHTML = `
+        <div class="message-avatar">${initial}</div>
+        <div class="message-content">
+          <div class="message-header">
+            <span class="message-sender">${isMe ? 'You' : senderName}</span>
+            <span class="message-time">${time}</span>
+          </div>
+          <div class="message-bubble">${escapeHtml(message.content)}</div>
+        </div>
+      `;
+
+      elements.messagesContainer.appendChild(messageEl);
+
+      if (scroll) {
+        elements.messagesContainer.scrollTop = elements.messagesContainer.scrollHeight;
+      }
+    }
+
+    // Sending messages
+    elements.sendBtn.addEventListener('click', sendMessage);
+    elements.messageInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+
+      // Typing indicator
+      if (!state.isTyping) {
+        state.isTyping = true;
+        if (state.socket && state.socket.connected && state.currentRoom) {
+          state.socket.emit('typing', {
+            roomId: state.currentRoom.id,
+            user: { fullName: 'You' }
+          });
+        }
+      }
+
+      clearTimeout(state.typingTimeout);
+      state.typingTimeout = setTimeout(() => {
+        state.isTyping = false;
+        if (state.socket && state.socket.connected && state.currentRoom) {
+          state.socket.emit('stop_typing', {
+            roomId: state.currentRoom.id,
+            user: { fullName: 'You' }
+          });
+        }
+      }, 1000);
+    });
+
+    async function sendMessage() {
+      const content = elements.messageInput.value.trim();
+
+      if (!content || !state.currentRoom) return;
+
+      const result = await apiCall('/messages/send-message', {
+        method: 'POST',
+        body: JSON.stringify({
+          chatRoomId: state.currentRoom.id,
+          content
+        })
+      });
+
+      if (result.ok) {
+        elements.messageInput.value = '';
+        elements.messageInput.style.height = 'auto';
+        log('Message sent');
+      } else {
+        alert('Failed to send message');
+        log('Failed to send message', 'error');
+      }
+    }
+
+    // Refresh rooms
+    elements.refreshBtn.addEventListener('click', refreshRooms);
+
+    async function refreshRooms() {
+      if (state.userType === 'admin') {
+        const result = await apiCall('/messages/rooms');
+        if (result.ok) {
+          state.rooms = result.data.data.rooms;
+          renderRooms(state.rooms);
+          log('Rooms refreshed');
+        }
+      } else if (state.userType === 'user') {
+        const result = await apiCall('/messages/my-room');
+        if (result.ok) {
+          state.currentRoom = result.data.data.room;
+          renderRooms([state.currentRoom]);
+          log('Room refreshed');
+        }
+      }
+    }
+
+    // Auto-resize textarea
+    elements.messageInput.addEventListener('input', function() {
+      this.style.height = 'auto';
+      this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+
+    // Utilities
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    log('Chat client ready');
+  </script>
+</body>
+</html>

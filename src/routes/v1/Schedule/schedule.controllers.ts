@@ -5,11 +5,17 @@ import { uploadsDir } from "../../../config/storage.config";
 
 export const uploadSchedule = async (request, reply) => {
   try {
-    const { assignTo, commodityType, transportMode } = request.body;
+    const { assignTo, commodityType, transportMode, assetGroup, seduleMonth } =
+      request.body;
 
-    const missingField = ["assignTo", "commodityType", "transportMode"].find(
-      (field) => !request.body[field]
-    );
+    // Check for required fields
+    const missingField = [
+      "assignTo",
+      "commodityType",
+      "transportMode",
+      "assetGroup",
+      "seduleMonth",
+    ].find((field) => !request.body[field]);
 
     if (missingField) {
       if (request.file?.path && fs.existsSync(request.file.path)) {
@@ -30,6 +36,7 @@ export const uploadSchedule = async (request, reply) => {
 
     const prisma = request.server.prisma;
 
+    // Verify assigned user
     const user = await prisma.user.findUnique({
       where: { id: assignTo },
       select: { id: true, avatar: true },
@@ -45,11 +52,14 @@ export const uploadSchedule = async (request, reply) => {
       });
     }
 
+    // Create schedule
     const schedule = await prisma.schedule.create({
       data: {
         commodityType,
         transportMode,
         scheduleFile: request.file.filename,
+        assetGroup,
+        seduleMonth,
         user: {
           connect: { id: assignTo },
         },
@@ -61,8 +71,20 @@ export const uploadSchedule = async (request, reply) => {
             fullName: true,
             email: true,
             avatar: true,
+            companyName: true,
           },
         },
+      },
+    });
+
+    // Send notification
+    await prisma.notification.create({
+      data: {
+        userId: assignTo,
+        type: "ScheduleAssigned",
+        title: "New schedule Submitted",
+        message: `A new schedule has been assigned to you.`,
+        eventId: schedule.id,
       },
     });
 
@@ -95,7 +117,6 @@ export const uploadSchedule = async (request, reply) => {
   }
 };
 
-
 export const getAllSchedules = async (request, reply) => {
   try {
     const prisma = request.server.prisma;
@@ -116,6 +137,7 @@ export const getAllSchedules = async (request, reply) => {
             fullName: true,
             email: true,
             avatar: true,
+            companyName: true,
           },
         },
       },
