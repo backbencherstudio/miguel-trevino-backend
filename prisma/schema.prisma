@@ -66,15 +66,15 @@ enum userStatus {
 }
 
 model nomination {
-  id            String         @id @default(cuid())
-  nominationId  String         @unique
+  id            String @id @default(cuid())
+  nominationId  String @unique
   assetGroup    String
-  commodityType CommodityTypes
+  commodityType String //CommodityTypes
   origin        String
-  volume        Volumes
+  volume        String //Volumes
   destination   String
-  unit          Units
-  transportMode TransportModes
+  unit          String //Units
+  transportMode String //TransportModes
 
   // Scheduling & Additional Information
   beginningDate DateTime
@@ -98,26 +98,26 @@ model nomination {
   @@map("nominations")
 }
 
-enum CommodityTypes {
-  NGLs
-  Refined_Products
-  Natural_Gas
-  Petrochemicals
-  Crude_Oil
-}
+// enum CommodityTypes {
+//   NGLs
+//   Refined_Products
+//   Natural_Gas
+//   Petrochemicals
+//   Crude_Oil
+// }
 
-enum Volumes {
-  low
-  medium
-  high
-}
+// enum Volumes {
+//   low
+//   medium
+//   high
+// }
 
-enum Units {
-  bbls
-  gallons
-  MCF
-  tons
-}
+// enum Units {
+//   bbls
+//   gallons
+//   MCF
+//   tons
+// }
 
 enum TransportModes {
   Pipeline
@@ -133,10 +133,10 @@ enum NominationStatus {
 }
 
 model schedule {
-  id            String         @id @default(cuid())
+  id            String @id @default(cuid())
   assignTo      String
-  user          User           @relation(fields: [assignTo], references: [id], onDelete: Cascade)
-  commodityType CommodityTypes
+  user          User   @relation(fields: [assignTo], references: [id], onDelete: Cascade)
+  commodityType String //CommodityTypes
   transportMode TransportModes
   scheduleFile  String
 
@@ -199,4 +199,3 @@ enum NotificationType {
   ScheduleAssigned
   message
 }
-

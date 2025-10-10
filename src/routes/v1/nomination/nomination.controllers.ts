@@ -5,6 +5,18 @@ import { uploadsDir } from "../../../config/storage.config";
 
 export const createNomination = async (request, reply) => {
   try {
+    // const CommodityTypes = [
+    //   "NGLs",
+    //   "Refined_Products",
+    //   "Natural_Gas",
+    //   "Petrochemicals",
+    //   "Crude_Oil",
+    // ];
+    // const Volumes = ["low", "medium", "high"];
+    // const Units = ["bbls", "gallons", "MCF", "tons"];
+    // const TransportModes = ["Pipeline", "Trucking", "Railcar", "Marine"];
+    // const NominationStatus = ["Submitted", "Complete", "Withdraw"];
+
     const {
       commodityType,
       assetGroup,
@@ -39,6 +51,43 @@ export const createNomination = async (request, reply) => {
         message: `${missingField} is required!`,
       });
     }
+
+    // // --- Step 2: Enum Validation ---
+    // if (!CommodityTypes.includes(commodityType)) {
+    //   return reply.status(400).send({
+    //     success: false,
+    //     message: `Invalid commodityType: "${commodityType}". Allowed values are: ${CommodityTypes.join(
+    //       ", "
+    //     )}`,
+    //   });
+    // }
+
+    // if (!Volumes.includes(volume)) {
+    //   return reply.status(400).send({
+    //     success: false,
+    //     message: `Invalid volume: "${volume}". Allowed values are: ${Volumes.join(
+    //       ", "
+    //     )}`,
+    //   });
+    // }
+
+    // if (!Units.includes(unit)) {
+    //   return reply.status(400).send({
+    //     success: false,
+    //     message: `Invalid unit: "${unit}". Allowed values are: ${Units.join(
+    //       ", "
+    //     )}`,
+    //   });
+    // }
+
+    // if (!TransportModes.includes(transportMode)) {
+    //   return reply.status(400).send({
+    //     success: false,
+    //     message: `Invalid transportMode: "${transportMode}". Allowed values are: ${TransportModes.join(
+    //       ", "
+    //     )}`,
+    //   });
+    // }
 
     const prisma = request.server.prisma;
     const admin = request.user?.type;
@@ -209,12 +258,16 @@ export const getMyNominations = async (request, reply) => {
 
     const page = parseInt(request.query.page) || 1;
     const limit = parseInt(request.query.limit) || 10;
-    const startDate = request.query.startDate
-      ? new Date(request.query.startDate)
-      : null;
-    const endDate = request.query.endDate
-      ? new Date(request.query.endDate)
-      : null;
+
+    const startDate =
+      request.query.startDate && !isNaN(Date.parse(request.query.startDate))
+        ? new Date(request.query.startDate)
+        : null;
+
+    const endDate =
+      request.query.endDate && !isNaN(Date.parse(request.query.endDate))
+        ? new Date(new Date(request.query.endDate).setHours(23, 59, 59, 999))
+        : null;
 
     const skip = (page - 1) * limit;
 
@@ -399,6 +452,7 @@ export const getAllNominations = async (request, reply) => {
     });
   }
 };
+
 
 export const updateNominationStatus = async (request, reply) => {
   try {
