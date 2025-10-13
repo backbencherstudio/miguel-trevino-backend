@@ -38,7 +38,7 @@ const nominationRoutes = (fastify: FastifyInstance) => {
 
   fastify.get("/all", { preHandler: verifyUser("admin") }, getAllNominations);
 
-  fastify.post("/status/:nominationId", { preHandler: verifyUser("admin") }, updateNominationStatus);
+  fastify.patch("/status/:nominationId", { preHandler: verifyUser("admin") }, updateNominationStatus);
 
   fastify.delete("/delete/:nominationId", { preHandler: verifyUser("admin") }, deleteNomination);
 

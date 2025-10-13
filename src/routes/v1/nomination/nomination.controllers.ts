@@ -457,11 +457,28 @@ export const updateNominationStatus = async (request, reply) => {
   try {
     const prisma = request.server.prisma;
     const { nominationId } = request.params;
+    const { status } = request.body;
+
+    const allowedStatuses = ["Submitted", "Complete", "Withdraw"];
 
     if (!nominationId) {
       return reply.status(400).send({
         success: false,
         message: "nominationId is required!",
+      });
+    }
+
+    if (!status) {
+      return reply.status(400).send({
+        success: false,
+        message: "status is required!",
+      });
+    }
+
+    if (!allowedStatuses.includes(status)) {
+      return reply.status(400).send({
+        success: false,
+        message: `Invalid status value! Allowed statuses are: ${allowedStatuses.join(", ")}.`,
       });
     }
 
@@ -477,17 +494,14 @@ export const updateNominationStatus = async (request, reply) => {
       });
     }
 
-    const newStatus =
-      nomination.status === "Submitted" ? "Complete" : "Submitted";
-
     const updatedNomination = await prisma.nomination.update({
       where: { id: nominationId },
-      data: { status: newStatus },
+      data: { status },
     });
 
     return reply.status(200).send({
       success: true,
-      message: `Nomination status updated to ${newStatus}`,
+      message: `Nomination status updated to ${updatedNomination?.status}.`,
       data: updatedNomination,
     });
   } catch (error) {
@@ -499,6 +513,7 @@ export const updateNominationStatus = async (request, reply) => {
     });
   }
 };
+
 
 export const deleteNomination = async (request, reply) => {
   try {
