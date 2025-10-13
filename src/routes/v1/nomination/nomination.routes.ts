@@ -8,6 +8,7 @@ import {
   getMyNominations,
   uploadSchedule,
   updateNominationStatus,
+  deleteNomination
 } from "./nomination.controllers";
 
 const nominationRoutes = (fastify: FastifyInstance) => {
@@ -38,6 +39,9 @@ const nominationRoutes = (fastify: FastifyInstance) => {
   fastify.get("/all", { preHandler: verifyUser("admin") }, getAllNominations);
 
   fastify.post("/status/:nominationId", { preHandler: verifyUser("admin") }, updateNominationStatus);
+
+  fastify.delete("/delete/:nominationId", { preHandler: verifyUser("admin") }, deleteNomination);
+
 };
 
 export default nominationRoutes;

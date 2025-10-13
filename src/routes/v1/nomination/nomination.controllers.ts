@@ -453,7 +453,6 @@ export const getAllNominations = async (request, reply) => {
   }
 };
 
-
 export const updateNominationStatus = async (request, reply) => {
   try {
     const prisma = request.server.prisma;
@@ -493,6 +492,48 @@ export const updateNominationStatus = async (request, reply) => {
     });
   } catch (error) {
     request.log.error(error);
+    return reply.code(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+export const deleteNomination = async (request, reply) => {
+  try {
+    const prisma = request.server.prisma;
+    const { nominationId } = request.params;
+
+    if (!nominationId) {
+      return reply.code(400).send({
+        success: false,
+        message: "nomination Id is reqiord!",
+      });
+    }
+
+    const nomination = await prisma.nomination.findUnique({
+      where: { id: nominationId },
+      select: { id: true, scheduleFile: true },
+    });
+
+    if (!nomination) {
+      return reply.status(404).send({
+        success: false,
+        message: "Nomination not found!",
+      });
+    }
+
+    // Delete nomination
+    await prisma.nomination.delete({
+      where: { id: nominationId },
+    });
+
+    return reply.status(200).send({
+      success: true,
+      message: "Nomination deleted successfully",
+    });
+  } catch (error) {
     return reply.code(500).send({
       success: false,
       message: "Internal Server Error",
