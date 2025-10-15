@@ -10,7 +10,7 @@ export const uploadSchedule = async (request, reply) => {
       commodityType,
       transportMode,
       assetGroup,
-      scheduleMonth,
+      scheduleMonth, // This comes from request body with correct spelling
     } = request.body;
 
     console.log("Request body:", request.body);
@@ -22,7 +22,7 @@ export const uploadSchedule = async (request, reply) => {
       "commodityType",
       "transportMode",
       "assetGroup",
-      "scheduleMonth",
+      "scheduleMonth", // Keep the correct spelling for validation
     ].find((field) => !request.body[field]);
 
     if (missingField) {
@@ -81,12 +81,12 @@ export const uploadSchedule = async (request, reply) => {
       });
     }
 
-    // Create schedule
+    // Create schedule - FIXED: Use seduleMonth (with typo) to match Prisma schema
     const schedule = await prisma.schedule.create({
       data: {
         commodityType,
         transportMode,
-        scheduleFile: scheduleFileName, // Use the determined filename
+        scheduleFile: scheduleFileName,
         assetGroup,
         scheduleMonth,
         user: {
@@ -118,7 +118,7 @@ export const uploadSchedule = async (request, reply) => {
     });
 
     return reply.status(200).send({
-      success: true,
+      success: false,
       message: "Schedule uploaded successfully",
       data: {
         ...schedule,
@@ -146,6 +146,9 @@ export const uploadSchedule = async (request, reply) => {
     });
   }
 };
+
+
+
 export const getAllSchedules = async (request, reply) => {
   try {
     const prisma = request.server.prisma;

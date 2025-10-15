@@ -50,4 +50,7 @@ const scheduleRoutes = (fastify: FastifyInstance) => {
   );
 };
 
+
+
+
 export default scheduleRoutes;
