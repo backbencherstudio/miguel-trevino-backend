@@ -98,7 +98,7 @@ export const registerSendOtp = async (request, reply) => {
 
     return reply
       .status(200)
-      .send({ success: true, message: "OTP stored in Redis" });
+      .send({ success: true, message: "send otp to your email!" });
   } catch (error) {
     request.log.error(error);
     return reply

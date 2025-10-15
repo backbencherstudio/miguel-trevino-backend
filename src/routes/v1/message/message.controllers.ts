@@ -96,7 +96,9 @@ export const getAllChatRooms = async (request, reply) => {
       updatedAt: room.updatedAt,
       user: {
         ...room.user,
-        avatar: room.user.avatar ? getImageUrl(room.user.avatar) : null,
+        avatar: room.user.avatar
+          ? getImageUrl(`/uploads/${room.user.avatar}`)
+          : null,
       },
       lastMessage: room.messages[0]
         ? {
@@ -144,7 +146,7 @@ export const getUserChatRoom = async (request, reply) => {
           take: 1,
           include: {
             sender: {
-              select: { id: true, fullName: true, type: true},
+              select: { id: true, fullName: true, type: true },
             },
           },
         },
@@ -167,7 +169,9 @@ export const getUserChatRoom = async (request, reply) => {
       updatedAt: chatRoom.updatedAt,
       user: {
         ...chatRoom.user,
-        avatar: chatRoom.user.avatar ? getImageUrl(chatRoom.user.avatar) : null,
+        avatar: chatRoom.user.avatar
+          ? getImageUrl(`/uploads/${chatRoom.user.avatar}`)
+          : null,
       },
       lastMessage: chatRoom.messages[0]
         ? {
@@ -251,10 +255,31 @@ export const getChatformRoom = async (request, reply) => {
       });
     }
 
+    const roomData = {
+      id: chatRoom.id,
+      user: {
+        ...chatRoom.user,
+        avatar: chatRoom.user.avatar
+          ? getImageUrl(`/uploads/${chatRoom.user.avatar}`)
+          : null,
+      },
+      messages: chatRoom.messages.map((msg) => ({
+        id: msg.id,
+        content: msg.content,
+        createdAt: msg.createdAt,
+        sender: {
+          ...msg.sender,
+          avatar: msg.sender.avatar
+            ? getImageUrl(`/uploads/${msg.sender.avatar}`)
+            : null,
+        },
+      })),
+    };
+
     return reply.status(200).send({
       success: true,
       message: "Messages retrieved successfully",
-      data: chatRoom,
+      data: roomData,
       pagination: {
         currentPage: page,
         itemsPerPage: limit,
@@ -320,14 +345,12 @@ export const sendMessage = async (request, reply) => {
       },
     });
 
-
     io.to(chatRoomId).emit("new_message", {
       ...message,
       chatRoomId,
       createdAt: message.createdAt,
       sender: message.sender,
     });
-
 
     // io.emit("update_room_last_message", {
     //   roomId: chatRoomId,
@@ -359,4 +382,3 @@ export const sendMessage = async (request, reply) => {
     });
   }
 };
-

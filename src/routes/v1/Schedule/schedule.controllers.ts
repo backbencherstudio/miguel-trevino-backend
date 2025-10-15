@@ -5,8 +5,16 @@ import { uploadsDir } from "../../../config/storage.config";
 
 export const uploadSchedule = async (request, reply) => {
   try {
-    const { assignTo, commodityType, transportMode, assetGroup, seduleMonth } =
-      request.body;
+    const {
+      assignTo,
+      commodityType,
+      transportMode,
+      assetGroup,
+      scheduleMonth,
+    } = request.body;
+
+    console.log("Request body:", request.body);
+    console.log("Request file:", request.file);
 
     // Check for required fields
     const missingField = [
@@ -14,7 +22,7 @@ export const uploadSchedule = async (request, reply) => {
       "commodityType",
       "transportMode",
       "assetGroup",
-      "seduleMonth",
+      "scheduleMonth",
     ].find((field) => !request.body[field]);
 
     if (missingField) {
@@ -31,6 +39,27 @@ export const uploadSchedule = async (request, reply) => {
       return reply.status(400).send({
         success: false,
         message: "scheduleFile is required!",
+      });
+    }
+
+    // Debug file object
+    console.log("File details:", {
+      filename: request.file.filename,
+      originalname: request.file.originalname,
+      path: request.file.path,
+      size: request.file.size,
+    });
+
+    // Use originalname as fallback if filename is not available
+    const scheduleFileName = request.file.filename || request.file.originalname;
+
+    if (!scheduleFileName) {
+      if (request.file?.path && fs.existsSync(request.file.path)) {
+        fs.unlinkSync(request.file.path);
+      }
+      return reply.status(400).send({
+        success: false,
+        message: "Uploaded file is invalid - no filename available",
       });
     }
 
@@ -57,9 +86,9 @@ export const uploadSchedule = async (request, reply) => {
       data: {
         commodityType,
         transportMode,
-        scheduleFile: request.file.filename,
+        scheduleFile: scheduleFileName, // Use the determined filename
         assetGroup,
-        seduleMonth,
+        scheduleMonth,
         user: {
           connect: { id: assignTo },
         },
@@ -93,7 +122,7 @@ export const uploadSchedule = async (request, reply) => {
       message: "Schedule uploaded successfully",
       data: {
         ...schedule,
-        scheduleFile: getImageUrl(`/uploads/${request.file.filename}`),
+        scheduleFile: getImageUrl(`/uploads/${scheduleFileName}`),
         user: {
           ...schedule.user,
           avatar: schedule.user?.avatar
@@ -103,6 +132,7 @@ export const uploadSchedule = async (request, reply) => {
       },
     });
   } catch (error) {
+    console.error("Upload schedule error:", error);
     request.log.error(error);
 
     if (request.file?.path && fs.existsSync(request.file.path)) {
@@ -116,7 +146,6 @@ export const uploadSchedule = async (request, reply) => {
     });
   }
 };
-
 export const getAllSchedules = async (request, reply) => {
   try {
     const prisma = request.server.prisma;
@@ -260,7 +289,8 @@ export const updateSchedule = async (request, reply) => {
   try {
     const prisma = request.server.prisma;
     const scheduleId = request.params?.id;
-    const { assignTo, commodityType, transportMode } = request.body;
+    const { assignTo, commodityType, transportMode, scheduleMonth } =
+      request.body;
 
     const existingSchedule = await prisma.schedule.findUnique({
       where: { id: scheduleId },
@@ -280,6 +310,7 @@ export const updateSchedule = async (request, reply) => {
 
     if (commodityType) dataToUpdate.commodityType = commodityType;
     if (transportMode) dataToUpdate.transportMode = transportMode;
+    if (scheduleMonth) dataToUpdate.scheduleMonth = scheduleMonth;
 
     if (assignTo) {
       const user = await prisma.user.findUnique({ where: { id: assignTo } });
@@ -339,6 +370,49 @@ export const updateSchedule = async (request, reply) => {
     }
 
     return reply.status(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+export const deleteSchedules = async (request, reply) => {
+  try {
+    const prisma = request.server.prisma;
+    const { scheduleId } = request.params;
+
+    if (!scheduleId) {
+      return reply.code(400).send({
+        success: false,
+        message: "Schedule ID is required!",
+      });
+    }
+
+    // Find the schedule by ID
+    const schedule = await prisma.schedule.findUnique({
+      where: { id: scheduleId },
+      select: { id: true, scheduleFile: true },
+    });
+
+    if (!schedule) {
+      return reply.code(404).send({
+        success: false,
+        message: "Schedule not found!",
+      });
+    }
+
+    // Delete the schedule
+    await prisma.schedule.delete({
+      where: { id: scheduleId },
+    });
+
+    return reply.code(200).send({
+      success: true,
+      message: "Schedule deleted successfully",
+    });
+  } catch (error) {
+    return reply.code(500).send({
       success: false,
       message: "Internal Server Error",
       error: error instanceof Error ? error.message : "Unknown error",

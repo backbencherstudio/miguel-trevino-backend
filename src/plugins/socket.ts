@@ -5,7 +5,7 @@ import { Server } from "socket.io";
 export default fp(async (fastify) => {
   const io = new Server(fastify.server, {
     cors: { 
-      origin: ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:50468", "http://localhost:4002"],
+      origin: ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:50468", "http://localhost:4002", "http://127.0.0.1:5500"],
       methods: ["GET", "POST"],
       credentials: true
     },

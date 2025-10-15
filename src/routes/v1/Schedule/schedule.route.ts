@@ -7,6 +7,7 @@ import {
   getMySchedules,
   updateSchedule,
   uploadSchedule,
+  deleteSchedules
 } from "./schedule.controllers";
 
 const scheduleRoutes = (fastify: FastifyInstance) => {
@@ -40,6 +41,12 @@ const scheduleRoutes = (fastify: FastifyInstance) => {
       preHandler: [verifyUser("admin"), upload.single("scheduleFile")],
     },
     updateSchedule
+  );
+
+  fastify.delete(
+    "/delete/:scheduleId",
+    { preHandler: verifyUser("admin") },
+    deleteSchedules
   );
 };
 
