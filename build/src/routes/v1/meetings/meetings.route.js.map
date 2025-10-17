@@ -1,0 +1,1 @@
+{"version":3,"file":"meetings.route.js","sourceRoot":"","sources":["../../../../../src/routes/v1/meetings/meetings.route.ts"],"names":[],"mappings":";;AACA,iEAAyD;AACzD,yEAAiE;AAEjE,MAAM,aAAa,GAAG,CAAC,OAAwB,EAAE,EAAE;IAEjD,OAAO,CAAC,GAAG,CAAC,GAAG,EAAC,EAAC,UAAU,EAAE,IAAA,4BAAU,EAAC,MAAM,EAAE,OAAO,CAAC,EAAC,EAAC,sCAAe,CAAC,CAAC;AAE7E,CAAC,CAAC;AAEF,kBAAe,aAAa,CAAC"}
