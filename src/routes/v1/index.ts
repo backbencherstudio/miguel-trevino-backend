@@ -7,7 +7,7 @@ import dashboard from "./dashboard/dashboard.route";
 import message from "./message/message.routes";
 import notification from "./notification/notification.routes"
 import users from "./users/users.routes";
-import scheduleRoutes from "./schedule/schedule.routes";
+import scheduleRoutes from "./schedules/schedule.routes";
 
 async function routesV1(fastify: FastifyInstance) {
   const moduleRoutes = [

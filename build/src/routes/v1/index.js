@@ -6,17 +6,17 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const auth_routes_1 = __importDefault(require("./auth/auth.routes"));
 const meetings_route_1 = __importDefault(require("./meetings/meetings.route"));
 const nomination_routes_1 = __importDefault(require("./nomination/nomination.routes"));
-const schedule_route_1 = __importDefault(require("./schedule/schedule.route"));
 const dashboard_route_1 = __importDefault(require("./dashboard/dashboard.route"));
 const message_routes_1 = __importDefault(require("./message/message.routes"));
 const notification_routes_1 = __importDefault(require("./notification/notification.routes"));
 const users_routes_1 = __importDefault(require("./users/users.routes"));
+const schedule_routes_1 = __importDefault(require("./schedule/schedule.routes"));
 async function routesV1(fastify) {
     const moduleRoutes = [
         { path: "/auth", route: auth_routes_1.default },
         { path: "/meetings", route: meetings_route_1.default },
         { path: "/nomination", route: nomination_routes_1.default },
-        { path: "/schedule", route: schedule_route_1.default },
+        { path: "/schedule", route: schedule_routes_1.default },
         { path: "/dashboard", route: dashboard_route_1.default },
         { path: "/message", route: message_routes_1.default },
         { path: "/notification", route: notification_routes_1.default },
