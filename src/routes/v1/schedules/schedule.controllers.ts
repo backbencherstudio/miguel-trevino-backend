@@ -105,6 +105,7 @@ export const uploadSchedule = async (request, reply) => {
         },
       },
     });
+    
 
     // Send notification
     await prisma.notification.create({
