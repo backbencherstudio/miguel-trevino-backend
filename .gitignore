@@ -7,3 +7,4 @@ prisma/migrations
 dist
 __practice__
 __test__
+build
