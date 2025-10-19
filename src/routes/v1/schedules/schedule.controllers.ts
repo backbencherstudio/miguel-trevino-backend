@@ -1,3 +1,430 @@
+// import fs from "fs";
+// import path from "path";
+// import { getImageUrl } from "../../../utils/baseurl";
+// import { uploadsDir } from "../../../config/storage.config";
+
+// export const uploadSchedule = async (request, reply) => {
+//   try {
+//     const {
+//       assignTo,
+//       commodityType,
+//       transportMode,
+//       assetGroup,
+//       scheduleMonth, // This comes from request body with correct spelling
+//     } = request.body;
+
+//     console.log("Request body:", request.body);
+//     console.log("Request file:", request.file);
+
+//     // Check for required fields
+//     const missingField = [
+//       "assignTo",
+//       "commodityType",
+//       "transportMode",
+//       "assetGroup",
+//       "scheduleMonth", // Keep the correct spelling for validation
+//     ].find((field) => !request.body[field]);
+
+//     if (missingField) {
+//       if (request.file?.path && fs.existsSync(request.file.path)) {
+//         fs.unlinkSync(request.file.path);
+//       }
+//       return reply.status(400).send({
+//         success: false,
+//         message: `${missingField} is required!`,
+//       });
+//     }
+
+//     if (!request.file) {
+//       return reply.status(400).send({
+//         success: false,
+//         message: "scheduleFile is required!",
+//       });
+//     }
+
+//     // Debug file object
+//     console.log("File details:", {
+//       filename: request.file.filename,
+//       originalname: request.file.originalname,
+//       path: request.file.path,
+//       size: request.file.size,
+//     });
+
+//     // Use originalname as fallback if filename is not available
+//     const scheduleFileName = request.file.filename || request.file.originalname;
+
+//     if (!scheduleFileName) {
+//       if (request.file?.path && fs.existsSync(request.file.path)) {
+//         fs.unlinkSync(request.file.path);
+//       }
+//       return reply.status(400).send({
+//         success: false,
+//         message: "Uploaded file is invalid - no filename available",
+//       });
+//     }
+
+//     const prisma = request.server.prisma;
+
+//     // Verify assigned user
+//     const user = await prisma.user.findUnique({
+//       where: { id: assignTo },
+//       select: { id: true, avatar: true },
+//     });
+
+//     if (!user) {
+//       if (request.file?.path && fs.existsSync(request.file.path)) {
+//         fs.unlinkSync(request.file.path);
+//       }
+//       return reply.status(400).send({
+//         success: false,
+//         message: "User not found for assignTo",
+//       });
+//     }
+
+//     // Create schedule - FIXED: Use seduleMonth (with typo) to match Prisma schema
+//     const schedule = await prisma.schedule.create({
+//       data: {
+//         commodityType,
+//         transportMode,
+//         scheduleFile: scheduleFileName,
+//         assetGroup,
+//         scheduleMonth,
+//         user: {
+//           connect: { id: assignTo },
+//         },
+//       },
+//       include: {
+//         user: {
+//           select: {
+//             id: true,
+//             fullName: true,
+//             email: true,
+//             avatar: true,
+//             companyName: true,
+//           },
+//         },
+//       },
+//     });
+
+
+//     // Send notification
+//     await prisma.notification.create({
+//       data: {
+//         userId: assignTo,
+//         type: "ScheduleAssigned",
+//         title: "New schedule Submitted",
+//         message: `A new schedule has been assigned to you.`,
+//         eventId: schedule.id,
+//       },
+//     });
+
+//     return reply.status(200).send({
+//       success: false,
+//       message: "Schedule uploaded successfully",
+//       data: {
+//         ...schedule,
+//         scheduleFile: getImageUrl(`/uploads/${scheduleFileName}`),
+//         user: {
+//           ...schedule.user,
+//           avatar: schedule.user?.avatar
+//             ? getImageUrl(`/uploads/${schedule.user.avatar}`)
+//             : null,
+//         },
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Upload schedule error:", error);
+//     request.log.error(error);
+
+//     if (request.file?.path && fs.existsSync(request.file.path)) {
+//       fs.unlinkSync(request.file.path);
+//     }
+
+//     return reply.code(500).send({
+//       success: false,
+//       message: "Internal Server Error",
+//       error: error instanceof Error ? error.message : "Unknown error",
+//     });
+//   }
+// };
+
+
+
+// export const getAllSchedules = async (request, reply) => {
+//   try {
+//     const prisma = request.server.prisma;
+
+//     const page = Number(request.query?.page) || 1;
+//     const limit = Number(request.query?.limit) || 10;
+//     const skip = (page - 1) * limit;
+
+//     const totalItems = await prisma.schedule.count();
+
+//     const schedules = await prisma.schedule.findMany({
+//       skip,
+//       take: limit,
+//       include: {
+//         user: {
+//           select: {
+//             id: true,
+//             fullName: true,
+//             email: true,
+//             avatar: true,
+//             companyName: true,
+//           },
+//         },
+//       },
+//       orderBy: {
+//         createdAt: "desc",
+//       },
+//     });
+
+//     const formattedSchedules = schedules.map((schedule) => ({
+//       ...schedule,
+//       scheduleFile: getImageUrl(`/uploads/${schedule.scheduleFile}`),
+//       user: {
+//         ...schedule.user,
+//         avatar: schedule.user?.avatar
+//           ? getImageUrl(`/uploads/${schedule.user.avatar}`)
+//           : null,
+//       },
+//     }));
+
+//     const totalPages = Math.ceil(totalItems / limit);
+
+//     return reply.status(200).send({
+//       success: true,
+//       message: "Schedules fetched successfully",
+//       data: formattedSchedules,
+//       pagination: {
+//         totalItems,
+//         totalPages,
+//         currentPage: page,
+//         itemsPerPage: limit,
+//         hasNextPage: page < totalPages,
+//         hasPrevPage: page > 1,
+//       },
+//     });
+//   } catch (error) {
+//     request.log.error(error);
+//     return reply.status(500).send({
+//       success: false,
+//       message: "Internal Server Error",
+//       error: error instanceof Error ? error.message : "Unknown error",
+//     });
+//   }
+// };
+
+// export const getMySchedules = async (request, reply) => {
+//   try {
+//     const prisma = request.server.prisma;
+
+//     const userId = request.user?.id;
+
+//     if (!userId) {
+//       return reply.status(401).send({
+//         success: false,
+//         message: "Unauthorized",
+//       });
+//     }
+
+//     const page = Number(request.query?.page) || 1;
+//     const limit = Number(request.query?.limit) || 10;
+//     const skip = (page - 1) * limit;
+
+//     const totalItems = await prisma.schedule.count({
+//       where: { assignTo: userId },
+//     });
+
+//     const schedules = await prisma.schedule.findMany({
+//       where: { assignTo: userId },
+//       skip,
+//       take: limit,
+//       include: {
+//         user: {
+//           select: {
+//             id: true,
+//             fullName: true,
+//             email: true,
+//             avatar: true,
+//           },
+//         },
+//       },
+//       orderBy: { createdAt: "desc" },
+//     });
+
+//     const formattedSchedules = schedules.map((schedule) => ({
+//       ...schedule,
+//       scheduleFile: getImageUrl(`/uploads/${schedule.scheduleFile}`),
+//       user: {
+//         ...schedule.user,
+//         avatar: schedule.user?.avatar
+//           ? getImageUrl(`/uploads/${schedule.user.avatar}`)
+//           : null,
+//       },
+//     }));
+
+//     const totalPages = Math.ceil(totalItems / limit);
+
+//     return reply.status(200).send({
+//       success: true,
+//       message: "Your schedules fetched successfully",
+//       data: formattedSchedules,
+//       pagination: {
+//         totalItems,
+//         totalPages,
+//         currentPage: page,
+//         itemsPerPage: limit,
+//         hasNextPage: page < totalPages,
+//         hasPrevPage: page > 1,
+//       },
+//     });
+//   } catch (error) {
+//     request.log.error(error);
+//     return reply.status(500).send({
+//       success: false,
+//       message: "Internal Server Error",
+//       error: error instanceof Error ? error.message : "Unknown error",
+//     });
+//   }
+// };
+
+// export const updateSchedule = async (request, reply) => {
+//   try {
+//     const prisma = request.server.prisma;
+//     const scheduleId = request.params?.id;
+//     const { assignTo, commodityType, transportMode, scheduleMonth } =
+//       request.body;
+
+//     const existingSchedule = await prisma.schedule.findUnique({
+//       where: { id: scheduleId },
+//     });
+
+//     if (!existingSchedule) {
+//       if (request.file?.path && fs.existsSync(request.file.path)) {
+//         fs.unlinkSync(request.file.path);
+//       }
+//       return reply.status(404).send({
+//         success: false,
+//         message: "Schedule not found",
+//       });
+//     }
+
+//     const dataToUpdate: any = {};
+
+//     if (commodityType) dataToUpdate.commodityType = commodityType;
+//     if (transportMode) dataToUpdate.transportMode = transportMode;
+//     if (scheduleMonth) dataToUpdate.scheduleMonth = scheduleMonth;
+
+//     if (assignTo) {
+//       const user = await prisma.user.findUnique({ where: { id: assignTo } });
+//       if (!user) {
+//         if (request.file?.path && fs.existsSync(request.file.path)) {
+//           fs.unlinkSync(request.file.path);
+//         }
+//         return reply.status(400).send({
+//           success: false,
+//           message: "User not found for assignTo",
+//         });
+//       }
+//       dataToUpdate.user = { connect: { id: assignTo } };
+//     }
+
+//     if (request.file) {
+//       if (fs.existsSync(path.join(uploadsDir, existingSchedule.scheduleFile))) {
+//         fs.unlinkSync(path.join(uploadsDir, existingSchedule.scheduleFile));
+//       }
+//       dataToUpdate.scheduleFile = request.file.filename;
+//     }
+
+//     const updatedSchedule = await prisma.schedule.update({
+//       where: { id: scheduleId },
+//       data: dataToUpdate,
+//       include: {
+//         user: {
+//           select: {
+//             id: true,
+//             fullName: true,
+//             email: true,
+//             avatar: true,
+//           },
+//         },
+//       },
+//     });
+
+//     return reply.status(200).send({
+//       success: true,
+//       message: "Schedule updated successfully",
+//       data: {
+//         ...updatedSchedule,
+//         scheduleFile: getImageUrl(`/uploads/${updatedSchedule.scheduleFile}`),
+//         user: {
+//           ...updatedSchedule.user,
+//           avatar: updatedSchedule.user?.avatar
+//             ? getImageUrl(`/uploads/${updatedSchedule.user.avatar}`)
+//             : null,
+//         },
+//       },
+//     });
+//   } catch (error) {
+//     request.log.error(error);
+
+//     if (request.file?.path && fs.existsSync(request.file.path)) {
+//       fs.unlinkSync(request.file.path);
+//     }
+
+//     return reply.status(500).send({
+//       success: false,
+//       message: "Internal Server Error",
+//       error: error instanceof Error ? error.message : "Unknown error",
+//     });
+//   }
+// };
+
+// export const deleteSchedules = async (request, reply) => {
+//   try {
+//     const prisma = request.server.prisma;
+//     const { scheduleId } = request.params;
+
+//     if (!scheduleId) {
+//       return reply.code(400).send({
+//         success: false,
+//         message: "Schedule ID is required!",
+//       });
+//     }
+
+//     // Find the schedule by ID
+//     const schedule = await prisma.schedule.findUnique({
+//       where: { id: scheduleId },
+//       select: { id: true, scheduleFile: true },
+//     });
+
+//     if (!schedule) {
+//       return reply.code(404).send({
+//         success: false,
+//         message: "Schedule not found!",
+//       });
+//     }
+
+//     // Delete the schedule
+//     await prisma.schedule.delete({
+//       where: { id: scheduleId },
+//     });
+
+//     return reply.code(200).send({
+//       success: true,
+//       message: "Schedule deleted successfully",
+//     });
+//   } catch (error) {
+//     return reply.code(500).send({
+//       success: false,
+//       message: "Internal Server Error",
+//       error: error instanceof Error ? error.message : "Unknown error",
+//     });
+//   }
+// };
+
+
 import fs from "fs";
 import path from "path";
 import { getImageUrl } from "../../../utils/baseurl";
@@ -10,7 +437,7 @@ export const uploadSchedule = async (request, reply) => {
       commodityType,
       transportMode,
       assetGroup,
-      scheduleMonth, // This comes from request body with correct spelling
+      scheduleMonth,
     } = request.body;
 
     console.log("Request body:", request.body);
@@ -22,7 +449,7 @@ export const uploadSchedule = async (request, reply) => {
       "commodityType",
       "transportMode",
       "assetGroup",
-      "scheduleMonth", // Keep the correct spelling for validation
+      "scheduleMonth",
     ].find((field) => !request.body[field]);
 
     if (missingField) {
@@ -81,17 +508,15 @@ export const uploadSchedule = async (request, reply) => {
       });
     }
 
-    // Create schedule - FIXED: Use seduleMonth (with typo) to match Prisma schema
+    // Create schedule - CORRECTED: Use scheduleMonth (correct spelling)
     const schedule = await prisma.schedule.create({
       data: {
+        assignTo, // Make sure this field is included
         commodityType,
         transportMode,
         scheduleFile: scheduleFileName,
         assetGroup,
-        scheduleMonth,
-        user: {
-          connect: { id: assignTo },
-        },
+        scheduleMonth, // Correct spelling
       },
       include: {
         user: {
@@ -105,7 +530,6 @@ export const uploadSchedule = async (request, reply) => {
         },
       },
     });
-    
 
     // Send notification
     await prisma.notification.create({
@@ -119,7 +543,7 @@ export const uploadSchedule = async (request, reply) => {
     });
 
     return reply.status(200).send({
-      success: false,
+      success: true, // Changed from false to true
       message: "Schedule uploaded successfully",
       data: {
         ...schedule,
@@ -147,8 +571,6 @@ export const uploadSchedule = async (request, reply) => {
     });
   }
 };
-
-
 
 export const getAllSchedules = async (request, reply) => {
   try {
@@ -293,7 +715,7 @@ export const updateSchedule = async (request, reply) => {
   try {
     const prisma = request.server.prisma;
     const scheduleId = request.params?.id;
-    const { assignTo, commodityType, transportMode, scheduleMonth } =
+    const { assignTo, commodityType, transportMode, scheduleMonth, assetGroup } =
       request.body;
 
     const existingSchedule = await prisma.schedule.findUnique({
@@ -310,11 +732,14 @@ export const updateSchedule = async (request, reply) => {
       });
     }
 
-    const dataToUpdate: any = {};
-
-    if (commodityType) dataToUpdate.commodityType = commodityType;
-    if (transportMode) dataToUpdate.transportMode = transportMode;
-    if (scheduleMonth) dataToUpdate.scheduleMonth = scheduleMonth;
+    // Define dataToUpdate with explicit type or use a different approach
+    const dataToUpdate: any = {
+      ...(commodityType && { commodityType }),
+      ...(transportMode && { transportMode }),
+      ...(scheduleMonth && { scheduleMonth }),
+      ...(assetGroup && { assetGroup }),
+      ...(assignTo && { assignTo }),
+    };
 
     if (assignTo) {
       const user = await prisma.user.findUnique({ where: { id: assignTo } });
@@ -327,14 +752,14 @@ export const updateSchedule = async (request, reply) => {
           message: "User not found for assignTo",
         });
       }
-      dataToUpdate.user = { connect: { id: assignTo } };
     }
 
     if (request.file) {
+      // Delete old file if exists
       if (fs.existsSync(path.join(uploadsDir, existingSchedule.scheduleFile))) {
         fs.unlinkSync(path.join(uploadsDir, existingSchedule.scheduleFile));
       }
-      dataToUpdate.scheduleFile = request.file.filename;
+      dataToUpdate.scheduleFile = request.file.filename || request.file.originalname;
     }
 
     const updatedSchedule = await prisma.schedule.update({
@@ -381,6 +806,7 @@ export const updateSchedule = async (request, reply) => {
   }
 };
 
+
 export const deleteSchedules = async (request, reply) => {
   try {
     const prisma = request.server.prisma;
@@ -404,6 +830,11 @@ export const deleteSchedules = async (request, reply) => {
         success: false,
         message: "Schedule not found!",
       });
+    }
+
+    // Delete the associated file
+    if (fs.existsSync(path.join(uploadsDir, schedule.scheduleFile))) {
+      fs.unlinkSync(path.join(uploadsDir, schedule.scheduleFile));
     }
 
     // Delete the schedule

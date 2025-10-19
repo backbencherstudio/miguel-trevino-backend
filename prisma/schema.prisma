@@ -136,19 +136,21 @@ enum NominationStatus {
   Withdraw
 }
 
+
 model schedule {
-  id            String  @id @default(cuid())
+  id            String   @id @default(cuid())
   assignTo      String
-  user          User    @relation(fields: [assignTo], references: [id], onDelete: Cascade)
-  commodityType String //CommodityTypes
-  transportMode String //TransportModes
+  user          User     @relation(fields: [assignTo], references: [id], onDelete: Cascade)
+  commodityType String
+  transportMode String
   scheduleFile  String
   assetGroup    String
-  scheduleMonth   String?
+  scheduleMonth String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-   @@map("schedules")
+
+  @@map("schedule")
 }
 
 model chatRoom {

@@ -81,7 +81,7 @@ export const dashboardCalculation = async (request, reply) => {
         },
       },
     });
-    
+
 
     const prevMonthSchedules = await prisma.schedule.count({
       where: {
@@ -142,35 +142,43 @@ export const dashboardCalculation = async (request, reply) => {
     });
   }
 };
+
 export const getScheduleStatistics = async (request, reply) => {
   try {
     const prisma = request.server.prisma;
     const { year = new Date().getFullYear() } = request.query;
 
-    const monthlyData = await prisma.$queryRaw`
-      SELECT 
-        EXTRACT(MONTH FROM "createdAt") as month,
-        COUNT(*) as count
-      FROM "schedules"
-      WHERE EXTRACT(YEAR FROM "createdAt") = ${Number(year)}
-      GROUP BY EXTRACT(MONTH FROM "createdAt")
-      ORDER BY month
-    `;
+    const yearStart = new Date(Number(year), 0, 1);
+    const yearEnd = new Date(Number(year), 11, 31, 23, 59, 59);
+
+    // Get all schedules for the year
+    const schedules = await prisma.schedule.findMany({
+      where: {
+        createdAt: {
+          gte: yearStart,
+          lte: yearEnd
+        }
+      },
+      select: {
+        createdAt: true
+      }
+    });
+
+    // Group by month
+    const monthlyCounts = Array(12).fill(0);
+    
+    schedules.forEach(schedule => {
+      const month = schedule.createdAt.getMonth(); // 0-11
+      monthlyCounts[month]++;
+    });
 
     const monthNames = ["January", "February", "March", "April", "May", "June", 
                         "July", "August", "September", "October", "November", "December"];
 
     const chartData = monthNames.map((monthName, index) => ({
       month: monthName,
-      schedules: 0
+      schedules: monthlyCounts[index]
     }));
-
-    monthlyData.forEach((item: any) => {
-      const monthIndex = parseInt(item.month) - 1;
-      if (monthIndex >= 0 && monthIndex < 12) {
-        chartData[monthIndex].schedules = Number(item.count);
-      }
-    });
 
     return reply.status(200).send({
       success: true,
