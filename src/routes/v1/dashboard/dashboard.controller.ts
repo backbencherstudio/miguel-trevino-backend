@@ -81,6 +81,7 @@ export const dashboardCalculation = async (request, reply) => {
         },
       },
     });
+    
 
     const prevMonthSchedules = await prisma.schedule.count({
       where: {
