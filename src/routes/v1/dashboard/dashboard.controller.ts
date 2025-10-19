@@ -1,5 +1,4 @@
 
-
 export const dashboardCalculation = async (request, reply) => {
   try {
     const prisma = request.server.prisma;
@@ -18,7 +17,14 @@ export const dashboardCalculation = async (request, reply) => {
       if (previous === 0) {
         return current > 0 ? 100 : 0;
       }
-      return Math.round(((current - previous) / previous) * 100);
+      
+      const percentage = Math.round(((current - previous) / previous) * 100);
+      
+      // Cap extreme percentages for better UX
+      if (percentage > 500) return 500; // Maximum 500% increase
+      if (percentage < -100) return -100; // Maximum 100% decrease
+      
+      return percentage;
     };
 
     const currentMonthStart = new Date(currentYear, currentMonth, 1);
@@ -37,9 +43,9 @@ export const dashboardCalculation = async (request, reply) => {
       },
     });
 
-    const currentMonthConfirmed = await prisma.nomination.count({
+    const currentMonthComplete = await prisma.nomination.count({
       where: {
-        status: "Confirmed",
+        status: "Complete",
         requestedDate: {
           gte: currentMonthStart,
           lte: currentMonthEnd,
@@ -66,9 +72,9 @@ export const dashboardCalculation = async (request, reply) => {
       },
     });
 
-    const prevMonthConfirmed = await prisma.nomination.count({
+    const prevMonthComplete = await prisma.nomination.count({
       where: {
-        status: "Confirmed",
+        status: "Complete",
         requestedDate: {
           gte: prevMonthStart,
           lte: prevMonthEnd,
@@ -85,14 +91,13 @@ export const dashboardCalculation = async (request, reply) => {
       },
     });
 
-    // Calculate percentage changes
     const submittedPercentage = calculatePercentageChange(
       currentMonthSubmitted,
       prevMonthSubmitted
     );
-    const confirmedPercentage = calculatePercentageChange(
-      currentMonthConfirmed,
-      prevMonthConfirmed
+    const completePercentage = calculatePercentageChange(
+      currentMonthComplete,
+      prevMonthComplete
     );
     const schedulesPercentage = calculatePercentageChange(
       currentMonthSchedules,
@@ -109,10 +114,10 @@ export const dashboardCalculation = async (request, reply) => {
             percentage: submittedPercentage,
             trend: submittedPercentage >= 0 ? "up" : "down",
           },
-          confirmed: {
-            count: currentMonthConfirmed,
-            percentage: confirmedPercentage,
-            trend: confirmedPercentage >= 0 ? "up" : "down",
+          complete: {
+            count: currentMonthComplete,
+            percentage: completePercentage,
+            trend: completePercentage >= 0 ? "up" : "down",
           },
         },
         schedules: {
@@ -120,10 +125,9 @@ export const dashboardCalculation = async (request, reply) => {
           percentage: schedulesPercentage,
           trend: schedulesPercentage >= 0 ? "up" : "down",
         },
-
         previousMonth: {
           submitted: prevMonthSubmitted,
-          confirmed: prevMonthConfirmed,
+          complete: prevMonthComplete,
           schedules: prevMonthSchedules,
         },
       },
@@ -137,9 +141,6 @@ export const dashboardCalculation = async (request, reply) => {
     });
   }
 };
-
-
-
 export const getScheduleStatistics = async (request, reply) => {
   try {
     const prisma = request.server.prisma;
@@ -163,10 +164,10 @@ export const getScheduleStatistics = async (request, reply) => {
       schedules: 0
     }));
 
-    monthlyData.forEach(item => {
+    monthlyData.forEach((item: any) => {
       const monthIndex = parseInt(item.month) - 1;
       if (monthIndex >= 0 && monthIndex < 12) {
-        chartData[monthIndex].schedules = parseInt(item.count);
+        chartData[monthIndex].schedules = Number(item.count);
       }
     });
 

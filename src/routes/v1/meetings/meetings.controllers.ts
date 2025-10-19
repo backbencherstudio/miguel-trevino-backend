@@ -1,6 +1,5 @@
 import fetch from "node-fetch";
 
-
 const clientApiUrl = "https://api.calendly.com/scheduled_events";
 const userUrl =
   "https://api.calendly.com/users/16335ce1-5e56-4feb-b4ba-d462ad80d77b";
@@ -101,3 +100,7 @@ export async function getMeetingsData(request, reply) {
     });
   }
 }
+
+//eyJraWQiOiIxY2UxZTEzNjE3ZGNmNzY2YjNjZWJjY2Y4ZGM1YmFmYThhNjVlNjg0MDIzZjdjMzJiZTgzNDliMjM4MDEzNWI0IiwidHlwIjoiUEFUIiwiYWxnIjoiRVMyNTYifQ.eyJpc3MiOiJodHRwczovL2F1dGguY2FsZW5kbHkuY29tIiwiaWF0IjoxNzU3NTg3NDEwLCJqdGkiOiJmYmEwZDA3My00YzFiLTQ0NjEtYTlmYS01MzU5Yjc2OWRkZjAiLCJ1c2VyX3V1aWQiOiIxNjMzNWNlMS01ZTU2LTRmZWItYjRiYS1kNDYyYWQ4MGQ3N2IifQ.XG-_7tyZMSRpUxAMatRVhgS-_kVP-MVOXkrUkXelj2J149YNINeAjoZldQI-YsBEKZeHE22NowiwXeDmZ53RwQ
+
+//eyJraWQiOiIxY2UxZTEzNjE3ZGNmNzY2YjNjZWJjY2Y4ZGM1YmFmYThhNjVlNjg0MDIzZjdjMzJiZTgzNDliMjM4MDEzNWI0IiwidHlwIjoiUEFUIiwiYWxnIjoiRVMyNTYifQ.eyJpc3MiOiJodHRwczovL2F1dGguY2FsZW5kbHkuY29tIiwiaWF0IjoxNzU3NTg3NDEwLCJqdGkiOiJmYmEwZDA3My00YzFiLTQ0NjEtYTlmYS01MzU5Yjc2OWRkZjAiLCJ1c2VyX3V1aWQiOiIxNjMzNWNlMS01ZTU2LTRmZWItYjRiYS1kNDYyYWQ4MGQ3N2IifQ.XG-_7tyZMSRpUxAMatRVhgS-_kVP-MVOXkrUkXelj2J149YNINeAjoZldQI-YsBEKZeHE22NowiwXeDmZ53RwQ
