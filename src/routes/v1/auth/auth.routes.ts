@@ -45,7 +45,11 @@ const authRoutes = (fastify: FastifyInstance) => {
   fastify.post("/2fa/email/sendotp", email2FASendOtp);
   fastify.post("/2fa/email/verifyotp", email2FAVerifyOtp);
   fastify.post("/2fa/email/recentotp", email2FARecentOtp);
-  fastify.post("/2fa/disable", { preHandler: verifyUser("user", "admin") },  email2FAdisable);
+  fastify.post(
+    "/2fa/disable",
+    { preHandler: [verifyUser("user", "admin")] },
+    email2FAdisable
+  );
 
   //controll parmitions
   fastify.patch(

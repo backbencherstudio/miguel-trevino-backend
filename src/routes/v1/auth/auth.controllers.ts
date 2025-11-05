@@ -917,35 +917,53 @@ export const email2FARecentOtp = async (request, reply) => {
 
 export const email2FAdisable = async (request, reply) => {
   try {
-    const userId = request.user?.id;
+    const userIdRaw = request?.user?.id;
+    const userEmailRaw = request?.user?.email;
+
+    if (!userIdRaw && !userEmailRaw) {
+      return reply.status(401).send({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
 
     const prisma = request.server.prisma;
+    const userId = userIdRaw ? String(userIdRaw) : undefined;
+    const userEmail = userEmailRaw ? String(userEmailRaw) : undefined;
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
-    if (!user) {
+    // Find by id first; fall back to email if needed
+    const user = userId
+      ? await prisma.user.findUnique({ where: { id: userId } })
+      : null;
+
+    const targetUser = user ?? (userEmail
+      ? await prisma.user.findUnique({ where: { email: userEmail } })
+      : null);
+
+    if (!targetUser) {
       return reply.status(404).send({
         success: false,
         message: "User not found",
       });
     }
-    await prisma.user.update({
-      where: { id: userId },
+
+    const updatedUser = await prisma.user.update({
+      where: { id: targetUser.id },
       data: {
         two_factor_authentication: 0,
         secret: null,
       },
+      select: {
+        id: true,
+        email: true,
+        two_factor_authentication: true,
+      },
     });
+
     return reply.status(200).send({
       success: true,
       message: "Two-factor authentication disabled successfully!",
-      data: {
-        id: user.id,
-        email: user.email,
-        two_factor_authentication: 0,
-        secret: null,
-      },
+      data: updatedUser,
     });
   } catch (error) {
     request.log.error(error);
@@ -956,6 +974,7 @@ export const email2FAdisable = async (request, reply) => {
     });
   }
 };
+
 
 export const parmitions = async (request, reply) => {
   try {
