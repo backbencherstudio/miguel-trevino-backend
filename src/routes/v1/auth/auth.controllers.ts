@@ -915,6 +915,48 @@ export const email2FARecentOtp = async (request, reply) => {
   }
 };
 
+export const email2FAdisable = async (request, reply) => {
+  try {
+    const userId = request.user?.id;
+
+    const prisma = request.server.prisma;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!user) {
+      return reply.status(404).send({
+        success: false,
+        message: "User not found",
+      });
+    }
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        two_factor_authentication: 0,
+        secret: null,
+      },
+    });
+    return reply.status(200).send({
+      success: true,
+      message: "Two-factor authentication disabled successfully!",
+      data: {
+        id: user.id,
+        email: user.email,
+        two_factor_authentication: 0,
+        secret: null,
+      },
+    });
+  } catch (error) {
+    request.log.error(error);
+    return reply.status(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
 export const parmitions = async (request, reply) => {
   try {
     const prisma = request.server.prisma;
