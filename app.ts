@@ -10,7 +10,7 @@ const app = Fastify({ logger: true });
 
 app.register(cors, {
   origin: "*",
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
 });
 
 registerMultipart(app);
