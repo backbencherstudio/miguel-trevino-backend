@@ -2,6 +2,7 @@
 export const dashboardCalculation = async (request, reply) => {
   try {
     const prisma = request.server.prisma;
+    
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
@@ -146,10 +147,72 @@ export const dashboardCalculation = async (request, reply) => {
 export const getScheduleStatistics = async (request, reply) => {
   try {
     const prisma = request.server.prisma;
-    const { year = new Date().getFullYear() } = request.query;
+    const { year = new Date().getFullYear(), month } = request.query;
 
-    const yearStart = new Date(Number(year), 0, 1);
-    const yearEnd = new Date(Number(year), 11, 31, 23, 59, 59);
+    const yearNum = Number(year);
+    const monthNum = month !== undefined ? Number(month) : undefined;
+
+    // If month is provided, return day-wise data for that month
+    if (monthNum !== undefined) {
+      // Validate month (0-11 or 1-12, we'll normalize to 0-11)
+      const monthIndex = monthNum >= 1 && monthNum <= 12 ? monthNum - 1 : monthNum;
+      if (monthIndex < 0 || monthIndex > 11) {
+        return reply.status(400).send({
+          success: false,
+          message: "Invalid month. Month must be between 1-12 or 0-11",
+        });
+      }
+
+      // Get the first and last day of the month
+      // Using Date(year, month, 0) gives us the last day of the previous month
+      // So Date(year, month + 1, 0) gives us the last day of the current month
+      const monthStart = new Date(yearNum, monthIndex, 1);
+      const monthEnd = new Date(yearNum, monthIndex + 1, 0, 23, 59, 59, 999);
+      const daysInMonth = monthEnd.getDate(); // Gets the last day (28, 29, 30, or 31)
+
+      // Get all schedules for the month
+      const schedules = await prisma.schedule.findMany({
+        where: {
+          createdAt: {
+            gte: monthStart,
+            lte: monthEnd
+          }
+        },
+        select: {
+          createdAt: true
+        }
+      });
+
+      // Group by day (1 to last day of month)
+      const dailyCounts = Array(daysInMonth).fill(0);
+      
+      schedules.forEach(schedule => {
+        const day = schedule.createdAt.getDate(); // 1-31
+        if (day >= 1 && day <= daysInMonth) {
+          dailyCounts[day - 1]++; // Array is 0-indexed, day is 1-indexed
+        }
+      });
+
+      const monthNames = ["January", "February", "March", "April", "May", "June", 
+                          "July", "August", "September", "October", "November", "December"];
+
+      const chartData = Array.from({ length: daysInMonth }, (_, index) => ({
+        day: index + 1,
+        schedules: dailyCounts[index]
+      }));
+
+      return reply.status(200).send({
+        success: true,
+        message: "Schedule statistics fetched successfully",
+        data: chartData,
+        year: yearNum,
+        month: monthNames[monthIndex]
+      });
+    }
+
+    // If month is not provided, return month-wise data for the year
+    const yearStart = new Date(yearNum, 0, 1);
+    const yearEnd = new Date(yearNum, 11, 31, 23, 59, 59);
 
     // Get all schedules for the year
     const schedules = await prisma.schedule.findMany({
@@ -184,7 +247,7 @@ export const getScheduleStatistics = async (request, reply) => {
       success: true,
       message: "Schedule statistics fetched successfully",
       data: chartData,
-      year: parseInt(year)
+      year: yearNum
     });
   } catch (error) {
     request.log.error(error);
